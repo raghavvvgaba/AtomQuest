@@ -26,12 +26,12 @@ export function RequireRole({
           </p>
           <CardTitle>Choose the right role first</CardTitle>
           <CardDescription>
-            Select the correct role to continue.
+            Sign in with an account that has access to this area.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Link className={buttonVariants({ variant: "default" })} href="/">
-            Return to role switcher
+            Return to login
           </Link>
         </CardContent>
       </Card>

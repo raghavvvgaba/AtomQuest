@@ -14,9 +14,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { SignOutButton } from "@/components/app/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import { getRoleLabel } from "@/lib/goal-sheet";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
@@ -132,12 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             ) : null}
             <ThemeToggle />
-            <Link
-              className={buttonVariants({ variant: "outline" })}
-              href="/"
-            >
-              Switch role
-            </Link>
+            <SignOutButton />
           </div>
         </header>
 

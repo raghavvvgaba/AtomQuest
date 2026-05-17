@@ -1,5 +1,8 @@
 import { AdminDashboard } from "@/components/app/admin-dashboard";
+import { requireRole } from "@/lib/auth/session";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  await requireRole("admin");
+
   return <AdminDashboard />;
 }

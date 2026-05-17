@@ -181,6 +181,13 @@ const initialState: AppState = {
 
 const AppStoreContext = createContext<AppStoreContextValue | null>(null);
 
+function createInitialState(initialUserId?: string | null): AppState {
+  return {
+    ...initialState,
+    currentUserId: initialUserId ?? null,
+  };
+}
+
 function getGoalSheetByEmployeeFromState(state: AppState, employeeId: string) {
   return state.goalSheets.find((sheet) => sheet.employeeId === employeeId);
 }
@@ -583,8 +590,18 @@ function appReducer(state: AppState, action: Action): AppState {
   }
 }
 
-export function AppStoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+export function AppStoreProvider({
+  children,
+  initialUserId,
+}: {
+  children: ReactNode;
+  initialUserId?: string | null;
+}) {
+  const [state, dispatch] = useReducer(
+    appReducer,
+    initialUserId,
+    createInitialState,
+  );
 
   const currentUser = useMemo(
     () => state.users.find((user) => user.id === state.currentUserId) ?? null,
