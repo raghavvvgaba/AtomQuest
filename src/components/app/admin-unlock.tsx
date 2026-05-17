@@ -42,7 +42,11 @@ export function AdminUnlock() {
                     </div>
                     <div className="flex items-center gap-3">
                       <StatusBadge status={sheet.status} />
-                      <Button onClick={() => unlockGoalSheet(sheet.employeeId)}>
+                      <Button
+                        onClick={async () => {
+                          await unlockGoalSheet(sheet.employeeId);
+                        }}
+                      >
                         <LockOpen className="mr-2 size-4" />
                         Unlock
                       </Button>

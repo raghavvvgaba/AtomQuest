@@ -30,6 +30,7 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
   const [returnComment, setReturnComment] = useState("");
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [approvalErrors, setApprovalErrors] = useState<string[]>([]);
+  const [isReturning, setIsReturning] = useState(false);
 
   const employee = state.users.find((user) => user.id === employeeId && user.role === "employee");
   const goalSheet = getGoalSheetByEmployee(employeeId);
@@ -204,8 +205,8 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
                 <div className="grid gap-3">
                   <Button
                     disabled={!isReviewable || hasReturnComment}
-                    onClick={() => {
-                      const result = approveGoalSheet(employee.id);
+                    onClick={async () => {
+                      const result = await approveGoalSheet(employee.id);
                       if (!result.isValid) {
                         setApprovalErrors(result.summary);
                         setActionNotice(null);
@@ -221,21 +222,30 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
                     Approve and lock
                   </Button>
                   <Button
-                    disabled={!isReviewable}
-                    onClick={() => {
+                    disabled={!isReviewable || isReturning}
+                    onClick={async () => {
+                      setIsReturning(true);
                       setApprovalErrors([]);
-                      returnGoalSheet(employee.id, returnComment);
-                      setActionNotice("Sheet returned to the employee for rework.");
+                      setActionNotice(null);
+
+                      try {
+                        const returned = await returnGoalSheet(employee.id, returnComment);
+                        setActionNotice(
+                          returned ? "Sheet returned to the employee for rework." : null,
+                        );
+                      } finally {
+                        setIsReturning(false);
+                      }
                     }}
                     type="button"
                     variant="secondary"
                   >
                     <RotateCcw className="mr-2 size-4" />
-                    Return for rework
+                    {isReturning ? "Returning..." : "Return for rework"}
                   </Button>
                 </div>
                 {actionNotice ? (
-                  <div className="rounded-2xl bg-primary/10 px-4 py-3 text-sm text-foreground">
+                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
                     {actionNotice}
                   </div>
                 ) : null}

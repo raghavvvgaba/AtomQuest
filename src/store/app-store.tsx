@@ -16,14 +16,6 @@ import {
   syncGoalTypeDefaults,
   validateGoalSheet,
 } from "@/lib/goal-sheet";
-import {
-  seededAuditLogs,
-  seededCheckInGoalUpdates,
-  seededCheckIns,
-  seededGoals,
-  seededGoalSheets,
-  seededUsers,
-} from "@/lib/seed-data";
 import type {
   AuditLogEntry,
   CheckIn,
@@ -36,6 +28,7 @@ import type {
   Role,
   User,
 } from "@/lib/types";
+import type { WorkflowSnapshot } from "@/lib/workflow/snapshot";
 
 type AppState = {
   currentUserId: string | null;
@@ -103,33 +96,34 @@ type AppStoreContextValue = {
     field: K,
     value: Goal[K],
   ) => void;
-  saveGoalSheetDraft: (employeeId: string, payload?: SaveGoalSheetPayload) => void;
-  submitGoalSheet: (employeeId: string) => GoalSheetValidationResult;
+  saveGoalSheetDraft: (employeeId: string, payload?: SaveGoalSheetPayload) => Promise<boolean>;
+  submitGoalSheet: (employeeId: string) => Promise<GoalSheetValidationResult>;
   updateManagerReview: (
     employeeId: string,
     updates: Array<Pick<Goal, "id" | "targetValue" | "weightage">>,
   ) => void;
-  returnGoalSheet: (employeeId: string, comment?: string) => void;
-  approveGoalSheet: (employeeId: string) => GoalSheetValidationResult;
+  returnGoalSheet: (employeeId: string, comment?: string) => Promise<boolean>;
+  approveGoalSheet: (employeeId: string) => Promise<GoalSheetValidationResult>;
   saveCheckInDraft: (
     employeeId: string,
     quarter: Quarter,
     updates: CheckInGoalUpdateDraft[],
-  ) => void;
+  ) => Promise<boolean>;
   submitCheckIn: (
     employeeId: string,
     quarter: Quarter,
-  ) => { isValid: boolean; summary: string[] };
+  ) => Promise<{ isValid: boolean; summary: string[] }>;
   reviewCheckIn: (
     employeeId: string,
     quarter: Quarter,
     managerComment?: string,
-  ) => void;
-  unlockGoalSheet: (employeeId: string) => void;
+  ) => Promise<boolean>;
+  unlockGoalSheet: (employeeId: string) => Promise<boolean>;
   createAuditLogEntry: (payload: Omit<AuditLogEntry, "id" | "createdAt">) => void;
 };
 
 type Action =
+  | { type: "hydrate-state"; state: WorkflowSnapshot }
   | { type: "switch-role"; userId: string }
   | { type: "add-goal"; employeeId: string }
   | { type: "remove-goal"; employeeId: string; goalId: string }
@@ -169,51 +163,20 @@ type Action =
   | { type: "unlock-goal-sheet"; employeeId: string }
   | { type: "create-audit-log-entry"; payload: Omit<AuditLogEntry, "id" | "createdAt"> };
 
-const initialState: AppState = {
+const emptyState: AppState = {
   currentUserId: null,
-  users: seededUsers,
-  goalSheets: seededGoalSheets,
-  goals: seededGoals,
-  checkIns: seededCheckIns,
-  checkInGoalUpdates: seededCheckInGoalUpdates,
-  auditLogs: seededAuditLogs,
+  users: [],
+  goalSheets: [],
+  goals: [],
+  checkIns: [],
+  checkInGoalUpdates: [],
+  auditLogs: [],
 };
 
 const AppStoreContext = createContext<AppStoreContextValue | null>(null);
 
-function createInitialState(initialUser?: User | null): AppState {
-  const users = initialUser
-    ? initialState.users.some((user) => user.id === initialUser.id)
-      ? initialState.users.map((user) =>
-          user.id === initialUser.id ? { ...user, ...initialUser } : user,
-        )
-      : [...initialState.users, initialUser]
-    : initialState.users;
-
-  const needsEmployeeGoalSheet =
-    initialUser?.role === "employee" &&
-    !initialState.goalSheets.some((sheet) => sheet.employeeId === initialUser.id);
-
-  const goalSheets = needsEmployeeGoalSheet
-    ? [
-        ...initialState.goalSheets,
-        {
-          id: `sheet-${initialUser.id}`,
-          employeeId: initialUser.id,
-          status: "draft" as const,
-          managerComment: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ]
-    : initialState.goalSheets;
-
-  return {
-    ...initialState,
-    currentUserId: initialUser?.id ?? null,
-    users,
-    goalSheets,
-  };
+function createInitialState(initialStateData?: WorkflowSnapshot | null): AppState {
+  return initialStateData ?? emptyState;
 }
 
 function getGoalSheetByEmployeeFromState(state: AppState, employeeId: string) {
@@ -293,6 +256,9 @@ function createCheckInForQuarter(
 
 function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case "hydrate-state":
+      return action.state;
+
     case "switch-role":
       return { ...state, currentUserId: action.userId };
 
@@ -620,15 +586,43 @@ function appReducer(state: AppState, action: Action): AppState {
 
 export function AppStoreProvider({
   children,
-  initialUser,
+  initialStateData,
 }: {
   children: ReactNode;
-  initialUser?: User | null;
+  initialStateData?: WorkflowSnapshot | null;
 }) {
   const [state, dispatch] = useReducer(
     appReducer,
-    initialUser,
+    initialStateData,
     createInitialState,
+  );
+
+  const hydrateState = useCallback((nextState: WorkflowSnapshot) => {
+    dispatch({ type: "hydrate-state", state: nextState });
+  }, []);
+
+  const persistWorkflowMutation = useCallback(
+    async (payload: Record<string, unknown>) => {
+      const response = await fetch("/api/workflow", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const body = (await response.json().catch(() => null)) as
+        | { snapshot?: WorkflowSnapshot; error?: string; summary?: string[] }
+        | null;
+
+      if (!response.ok || !body?.snapshot) {
+        throw new Error(body?.error ?? body?.summary?.[0] ?? "Workflow update failed.");
+      }
+
+      hydrateState(body.snapshot);
+      return body.snapshot;
+    },
+    [hydrateState],
   );
 
   const currentUser = useMemo(
@@ -827,14 +821,27 @@ export function AppStoreProvider({
   );
 
   const saveGoalSheetDraft = useCallback(
-    (employeeId: string, payload?: SaveGoalSheetPayload) => {
-      dispatch({ type: "save-goal-sheet-draft", employeeId, payload });
+    async (employeeId: string, payload?: SaveGoalSheetPayload) => {
+      const goalSheet = getGoalSheetByEmployeeFromState(state, employeeId);
+      if (!goalSheet) return false;
+
+      try {
+        await persistWorkflowMutation({
+          action: "saveGoalSheetDraft",
+          employeeId,
+          payload,
+          goals: state.goals.filter((goal) => goal.goalSheetId === goalSheet.id),
+        });
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [],
+    [persistWorkflowMutation, state],
   );
 
   const submitGoalSheet = useCallback(
-    (employeeId: string) => {
+    async (employeeId: string) => {
       const goalSheet = getGoalSheetByEmployeeFromState(state, employeeId);
       if (!goalSheet) {
         return {
@@ -863,10 +870,22 @@ export function AppStoreProvider({
         );
       }
 
-      dispatch({ type: "submit-goal-sheet", employeeId });
-      return result;
+      try {
+        await persistWorkflowMutation({
+          action: "submitGoalSheet",
+          employeeId,
+          goals: state.goals.filter((goal) => goal.goalSheetId === goalSheet.id),
+        });
+        return result;
+      } catch (error) {
+        return {
+          isValid: false,
+          summary: [error instanceof Error ? error.message : "Goal sheet submission failed."],
+          goalErrors: {},
+        };
+      }
     },
-    [getGoalSheetValidationResult, state],
+    [getGoalSheetValidationResult, persistWorkflowMutation, state],
   );
 
   const updateManagerReview = useCallback(
@@ -879,11 +898,27 @@ export function AppStoreProvider({
     [],
   );
 
-  const returnGoalSheet = useCallback((employeeId: string, comment?: string) => {
-    dispatch({ type: "return-goal-sheet", employeeId, comment });
-  }, []);
+  const returnGoalSheet = useCallback(
+    async (employeeId: string, comment?: string) => {
+      const goalSheet = getGoalSheetByEmployeeFromState(state, employeeId);
+      if (!goalSheet) return false;
 
-  const approveGoalSheet = useCallback((employeeId: string) => {
+      try {
+        await persistWorkflowMutation({
+          action: "returnGoalSheet",
+          employeeId,
+          comment,
+          goals: state.goals.filter((goal) => goal.goalSheetId === goalSheet.id),
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [persistWorkflowMutation, state],
+  );
+
+  const approveGoalSheet = useCallback(async (employeeId: string) => {
     const goalSheet = getGoalSheetByEmployeeFromState(state, employeeId);
     if (!goalSheet) {
       return {
@@ -912,19 +947,43 @@ export function AppStoreProvider({
       );
     }
 
-    dispatch({ type: "approve-goal-sheet", employeeId });
-    return result;
-  }, [getGoalSheetValidationResult, state]);
+    try {
+      await persistWorkflowMutation({
+        action: "approveGoalSheet",
+        employeeId,
+        goals: state.goals.filter((goal) => goal.goalSheetId === goalSheet.id),
+      });
+      return result;
+    } catch (error) {
+      return {
+        isValid: false,
+        summary: [error instanceof Error ? error.message : "Approval failed."],
+        goalErrors: {},
+      };
+    }
+  }, [getGoalSheetValidationResult, persistWorkflowMutation, state]);
 
   const saveCheckInDraft = useCallback(
-    (employeeId: string, quarter: Quarter, updates: CheckInGoalUpdateDraft[]) => {
+    async (employeeId: string, quarter: Quarter, updates: CheckInGoalUpdateDraft[]) => {
       dispatch({ type: "save-check-in-draft", employeeId, quarter, updates });
+
+      try {
+        await persistWorkflowMutation({
+          action: "saveCheckInDraft",
+          employeeId,
+          quarter,
+          updates,
+        });
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [],
+    [persistWorkflowMutation],
   );
 
   const submitCheckIn = useCallback(
-    (employeeId: string, quarter: Quarter) => {
+    async (employeeId: string, quarter: Quarter) => {
       const goalSheet = getGoalSheetByEmployeeFromState(state, employeeId);
       if (!goalSheet || goalSheet.status !== "approved") {
         return {
@@ -952,22 +1011,55 @@ export function AppStoreProvider({
         };
       }
 
-      dispatch({ type: "submit-check-in", employeeId, quarter });
-      return { isValid: true, summary: [] };
+      try {
+        await persistWorkflowMutation({
+          action: "submitCheckIn",
+          employeeId,
+          quarter,
+          updates,
+        });
+        return { isValid: true, summary: [] };
+      } catch (error) {
+        return {
+          isValid: false,
+          summary: [error instanceof Error ? error.message : "Check-in submission failed."],
+        };
+      }
     },
-    [state],
+    [persistWorkflowMutation, state],
   );
 
   const reviewCheckIn = useCallback(
-    (employeeId: string, quarter: Quarter, managerComment?: string) => {
-      dispatch({ type: "review-check-in", employeeId, quarter, managerComment });
+    async (employeeId: string, quarter: Quarter, managerComment?: string) => {
+      try {
+        await persistWorkflowMutation({
+          action: "reviewCheckIn",
+          employeeId,
+          quarter,
+          managerComment,
+        });
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [],
+    [persistWorkflowMutation],
   );
 
-  const unlockGoalSheet = useCallback((employeeId: string) => {
-    dispatch({ type: "unlock-goal-sheet", employeeId });
-  }, []);
+  const unlockGoalSheet = useCallback(
+    async (employeeId: string) => {
+      try {
+        await persistWorkflowMutation({
+          action: "unlockGoalSheet",
+          employeeId,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [persistWorkflowMutation],
+  );
 
   const createAuditLogEntry = useCallback(
     (payload: Omit<AuditLogEntry, "id" | "createdAt">) => {

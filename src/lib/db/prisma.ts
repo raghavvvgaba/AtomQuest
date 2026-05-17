@@ -20,7 +20,30 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+function hasWorkflowDelegates(client: PrismaClient) {
+  const workflowClient = client as PrismaClient & {
+    goalSheet?: unknown;
+    goal?: unknown;
+    checkIn?: unknown;
+    checkInGoalUpdate?: unknown;
+    auditLogEntry?: unknown;
+  };
+
+  return Boolean(
+    workflowClient.goalSheet &&
+      workflowClient.goal &&
+      workflowClient.checkIn &&
+      workflowClient.checkInGoalUpdate &&
+      workflowClient.auditLogEntry,
+  );
+}
+
+const cachedPrisma = globalForPrisma.prisma;
+
+export const prisma =
+  cachedPrisma && hasWorkflowDelegates(cachedPrisma)
+    ? cachedPrisma
+    : createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

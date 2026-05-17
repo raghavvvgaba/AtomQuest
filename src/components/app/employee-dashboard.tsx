@@ -6,6 +6,7 @@ import { ArrowRight, ClipboardCheck } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { RequireRole } from "@/components/app/require-role";
 import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -75,6 +76,36 @@ export function EmployeeDashboard() {
           </Card>
 
         </section>
+
+        {goalSheet?.status === "submitted" ? (
+          <Alert className="border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300">
+            <AlertTitle>Under review by manager</AlertTitle>
+            <AlertDescription>
+              Your goal sheet has been submitted and is currently under manager review. Editing is
+              disabled until it is returned for rework.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {goalSheet?.status === "approved" ? (
+          <Alert className="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+            <AlertTitle>Goals locked</AlertTitle>
+            <AlertDescription>
+              Your manager has approved this goal sheet. The goals are now locked and cannot be
+              edited unless an admin unlocks them.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {goalSheet?.status === "unlocked" ? (
+          <Alert className="border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+            <AlertTitle>Unlocked by admin</AlertTitle>
+            <AlertDescription>
+              An admin has unlocked your approved goal sheet. You can now update the goals and
+              submit the sheet again for manager review.
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         {goalSheet?.status === "returned" && goalSheet.managerComment ? (
           <Card className="border-destructive/30 bg-destructive/10">

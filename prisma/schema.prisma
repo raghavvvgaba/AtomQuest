@@ -13,6 +13,47 @@ enum AppRole {
   admin
 }
 
+enum GoalSheetStatus {
+  draft
+  submitted
+  returned
+  approved
+  unlocked
+}
+
+enum UomType {
+  numeric
+  percentage
+  timeline
+  zero
+}
+
+enum UomDirection {
+  min
+  max
+  timeline
+  zero
+}
+
+enum Quarter {
+  Q1
+  Q2
+  Q3
+  Q4
+}
+
+enum CheckInStatus {
+  draft
+  submitted
+  reviewed
+}
+
+enum ProgressStatus {
+  not_started
+  on_track
+  completed
+}
+
 model User {
   id            String    @id
   name          String
@@ -83,7 +124,89 @@ model AppUser {
   updatedAt  DateTime @updatedAt
 
   authUser   User     @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  goalSheet  GoalSheet?
+  auditLogs  AuditLogEntry[]
 
   @@index([role])
   @@index([managerId])
+}
+
+model GoalSheet {
+  id             String          @id
+  employeeId     String          @unique
+  status         GoalSheetStatus
+  managerComment String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  employee       AppUser         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  goals          Goal[]
+  checkIns       CheckIn[]
+
+  @@index([status])
+}
+
+model Goal {
+  id           String       @id
+  goalSheetId  String
+  thrustArea   String
+  title        String
+  description  String
+  uomType      UomType?
+  uomDirection UomDirection?
+  targetValue  String
+  weightage    Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  goalSheet    GoalSheet    @relation(fields: [goalSheetId], references: [id], onDelete: Cascade)
+  checkInUpdates CheckInGoalUpdate[]
+
+  @@index([goalSheetId])
+}
+
+model CheckIn {
+  id             String         @id
+  goalSheetId     String
+  quarter         Quarter
+  status          CheckInStatus
+  managerComment  String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  goalSheet       GoalSheet      @relation(fields: [goalSheetId], references: [id], onDelete: Cascade)
+  goalUpdates     CheckInGoalUpdate[]
+
+  @@unique([goalSheetId, quarter])
+  @@index([status])
+}
+
+model CheckInGoalUpdate {
+  id                String         @id
+  checkInId         String
+  goalId            String
+  actualAchievement String
+  progressStatus    ProgressStatus?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  checkIn           CheckIn        @relation(fields: [checkInId], references: [id], onDelete: Cascade)
+  goal              Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@unique([checkInId, goalId])
+  @@index([goalId])
+}
+
+model AuditLogEntry {
+  id           String    @id
+  actorAppUserId String?
+  actorName    String
+  action       String
+  entityLabel  String
+  createdAt    DateTime  @default(now())
+
+  actor        AppUser?  @relation(fields: [actorAppUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorAppUserId])
+  @@index([createdAt])
 }

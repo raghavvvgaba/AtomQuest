@@ -62,20 +62,26 @@ export function EmployeeCheckIns() {
     const nextUpdates = draftUpdates.map((update) =>
       update.goalId === goalId ? { ...update, ...patch } : update,
     );
-    saveCheckInDraft(employeeId, quarter, nextUpdates);
+    void saveCheckInDraft(employeeId, quarter, nextUpdates);
     setNotice(null);
     setSubmitSummary([]);
   }
 
-  function handleSave() {
-    saveCheckInDraft(employeeId, quarter, draftUpdates);
-    setNotice("Draft saved.");
-    setSubmitSummary([]);
+  async function handleSave() {
+    const saved = await saveCheckInDraft(employeeId, quarter, draftUpdates);
+    setNotice(saved ? "Draft saved." : "Draft could not be saved.");
+    setSubmitSummary(saved ? [] : ["We could not save this check-in draft."]);
   }
 
-  function handleSubmit() {
-    saveCheckInDraft(employeeId, quarter, draftUpdates);
-    const result = submitCheckIn(employeeId, quarter);
+  async function handleSubmit() {
+    const saved = await saveCheckInDraft(employeeId, quarter, draftUpdates);
+    if (!saved) {
+      setNotice(null);
+      setSubmitSummary(["We could not save the latest check-in changes."]);
+      return;
+    }
+
+    const result = await submitCheckIn(employeeId, quarter);
     setSubmitSummary(result.summary);
     setNotice(result.isValid ? "Check-in submitted." : null);
   }
@@ -164,7 +170,7 @@ export function EmployeeCheckIns() {
                       onValueChange={(value) =>
                         updateDraft(goal.id, { progressStatus: value as ProgressStatus })
                       }
-                      value={update?.progressStatus || undefined}
+                      value={update?.progressStatus || ""}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select status" />

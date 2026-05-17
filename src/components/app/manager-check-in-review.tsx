@@ -148,9 +148,9 @@ export function ManagerCheckInReview({ employeeId }: { employeeId: string }) {
               <Button
                 className="w-full"
                 disabled={!canReview}
-                onClick={() => {
-                  reviewCheckIn(employee.id, quarter, comment);
-                  setNotice("Check-in marked as reviewed.");
+                onClick={async () => {
+                  const reviewed = await reviewCheckIn(employee.id, quarter, comment);
+                  setNotice(reviewed ? "Check-in marked as reviewed." : null);
                 }}
               >
                 <Check className="mr-2 size-4" />

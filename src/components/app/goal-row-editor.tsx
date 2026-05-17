@@ -75,7 +75,7 @@ export function GoalRowEditor({
             onValueChange={(value) =>
               onFieldChange(goal.id, "thrustArea", value as Goal["thrustArea"])
             }
-            value={goal.thrustArea || undefined}
+            value={goal.thrustArea || ""}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select thrust area" />
@@ -120,7 +120,7 @@ export function GoalRowEditor({
             onValueChange={(value) =>
               onFieldChange(goal.id, "uomType", value as Goal["uomType"])
             }
-            value={goal.uomType || undefined}
+            value={goal.uomType || ""}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select type" />
@@ -143,7 +143,7 @@ export function GoalRowEditor({
               onValueChange={(value) =>
                 onFieldChange(goal.id, "uomDirection", value as Goal["uomDirection"])
               }
-              value={goal.uomDirection || undefined}
+              value={goal.uomDirection || ""}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select direction" />

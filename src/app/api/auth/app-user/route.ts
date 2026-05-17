@@ -38,13 +38,29 @@ export async function POST(request: Request) {
   }
 
   const appUser = await prisma.appUser.create({
-    data: {
-      id: `app-${crypto.randomUUID()}`,
-      authUserId: session.user.id,
-      name: session.user.name,
-      role,
-      managerId: role === "employee" ? "manager-01" : null,
-    },
+    data:
+      role === "employee"
+        ? {
+            id: `app-${crypto.randomUUID()}`,
+            authUserId: session.user.id,
+            name: session.user.name,
+            role,
+            managerId: "manager-01",
+            goalSheet: {
+              create: {
+                id: `sheet-app-${crypto.randomUUID()}`,
+                status: "draft",
+                managerComment: null,
+              },
+            },
+          }
+        : {
+            id: `app-${crypto.randomUUID()}`,
+            authUserId: session.user.id,
+            name: session.user.name,
+            role,
+            managerId: null,
+          },
   });
 
   return NextResponse.json({
