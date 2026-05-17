@@ -24,6 +24,8 @@ function hasWorkflowDelegates(client: PrismaClient) {
   const workflowClient = client as PrismaClient & {
     goalSheet?: unknown;
     goal?: unknown;
+    sharedGoal?: unknown;
+    sharedGoalAssignment?: unknown;
     checkIn?: unknown;
     checkInGoalUpdate?: unknown;
     auditLogEntry?: unknown;
@@ -32,6 +34,8 @@ function hasWorkflowDelegates(client: PrismaClient) {
   return Boolean(
     workflowClient.goalSheet &&
       workflowClient.goal &&
+      workflowClient.sharedGoal &&
+      workflowClient.sharedGoalAssignment &&
       workflowClient.checkIn &&
       workflowClient.checkInGoalUpdate &&
       workflowClient.auditLogEntry,

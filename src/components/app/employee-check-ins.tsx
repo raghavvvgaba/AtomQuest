@@ -28,11 +28,13 @@ import { useAppStore } from "@/store/app-store";
 export function EmployeeCheckIns() {
   const {
     currentUser,
+    state,
     getGoalSheetByEmployee,
     getGoalsByGoalSheet,
     getCheckInByEmployeeAndQuarter,
     getCheckInGoalUpdates,
     getComputedProgress,
+    getSharedGoalById,
     saveCheckInDraft,
     submitCheckIn,
   } = useAppStore();
@@ -134,6 +136,12 @@ export function EmployeeCheckIns() {
         <div className="space-y-4">
           {goals.map((goal) => {
             const update = draftUpdates.find((item) => item.goalId === goal.id);
+            const sharedGoal = goal.sharedGoalId ? getSharedGoalById(goal.sharedGoalId) : undefined;
+            const isPrimaryOwner = sharedGoal?.primaryOwnerEmployeeId === currentUser.id;
+            const primaryOwnerName = sharedGoal
+              ? state.users.find((user) => user.id === sharedGoal.primaryOwnerEmployeeId)?.name
+              : undefined;
+            const isSyncedSharedGoal = Boolean(sharedGoal && !isPrimaryOwner);
             return (
               <Card key={goal.id}>
                 <CardHeader>
@@ -155,7 +163,7 @@ export function EmployeeCheckIns() {
                   <div className="space-y-2">
                     <Label>Actual achievement</Label>
                     <Input
-                      disabled={!isEditable || !canUseCheckIns}
+                      disabled={!isEditable || !canUseCheckIns || isSyncedSharedGoal}
                       type={goal.uomType === "timeline" ? "date" : "text"}
                       value={update?.actualAchievement ?? ""}
                       onChange={(event) =>
@@ -166,7 +174,7 @@ export function EmployeeCheckIns() {
                   <div className="space-y-2">
                     <Label>Progress status</Label>
                     <Select
-                      disabled={!isEditable || !canUseCheckIns}
+                      disabled={!isEditable || !canUseCheckIns || isSyncedSharedGoal}
                       onValueChange={(value) =>
                         updateDraft(goal.id, { progressStatus: value as ProgressStatus })
                       }
@@ -190,6 +198,15 @@ export function EmployeeCheckIns() {
                       {getComputedProgress(goal, update?.actualAchievement ?? "")}
                     </p>
                   </div>
+                  {sharedGoal ? (
+                    <div className="md:col-span-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-700 dark:text-sky-300">
+                      {isPrimaryOwner
+                        ? "You are the primary owner for this shared goal. Your submitted achievement will sync to the linked employees."
+                        : update?.actualAchievement
+                          ? `This shared goal is synced from ${primaryOwnerName ?? "the primary owner"}.`
+                          : `Waiting for ${primaryOwnerName ?? "the primary owner"} to submit the shared goal achievement.`}
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             );

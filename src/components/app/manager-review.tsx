@@ -90,6 +90,11 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
                       </p>
                       <CardTitle>{goal.title}</CardTitle>
                       <CardDescription>{goal.description}</CardDescription>
+                      {goal.sharedGoalId ? (
+                        <p className="mt-2 text-sm text-sky-700 dark:text-sky-300">
+                          Shared goal. Target changes here will sync across linked employee copies.
+                        </p>
+                      ) : null}
                     </div>
                     <StatusBadge status={goalSheet.status} />
                   </div>

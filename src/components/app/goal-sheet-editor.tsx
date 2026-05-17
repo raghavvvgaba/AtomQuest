@@ -17,9 +17,11 @@ import { useAppStore } from "@/store/app-store";
 export function GoalSheetEditor() {
   const {
     currentUser,
+    state,
     getGoalSheetByEmployee,
     getGoalsByGoalSheet,
     getGoalSheetTotalWeightage,
+    getSharedGoalById,
     addGoal,
     removeGoal,
     updateGoalField,
@@ -175,20 +177,46 @@ export function GoalSheetEditor() {
               </Alert>
             ) : null}
 
-            {goals.map((goal, index) => (
-              <GoalRowEditor
-                key={goal.id}
-                allowRemove={isEditable}
-                errors={submitAttempted ? validation.goalErrors[goal.id] : undefined}
-                goal={goal}
-                index={index}
-                onFieldChange={(goalId, field, value) =>
-                  updateGoalField(employeeId, goalId, field, value)
-                }
-                onRemove={(goalId) => removeGoal(employeeId, goalId)}
-                readOnly={!isEditable}
-              />
-            ))}
+            {goals.map((goal, index) => {
+              const sharedGoal = goal.sharedGoalId ? getSharedGoalById(goal.sharedGoalId) : undefined;
+              const primaryOwnerName = sharedGoal
+                ? state.users.find((user) => user.id === sharedGoal.primaryOwnerEmployeeId)?.name
+                : undefined;
+
+              return (
+                <GoalRowEditor
+                  key={goal.id}
+                  allowRemove={isEditable && !goal.sharedGoalId}
+                  errors={submitAttempted ? validation.goalErrors[goal.id] : undefined}
+                  fieldReadOnly={
+                    goal.sharedGoalId
+                      ? {
+                          thrustArea: true,
+                          title: true,
+                          description: true,
+                          uomType: true,
+                          uomDirection: true,
+                          targetValue: true,
+                        }
+                      : undefined
+                  }
+                  goal={goal}
+                  index={index}
+                  onFieldChange={(goalId, field, value) =>
+                    updateGoalField(employeeId, goalId, field, value)
+                  }
+                  onRemove={(goalId) => removeGoal(employeeId, goalId)}
+                  readOnly={!isEditable}
+                  sharedGoalLabel={
+                    sharedGoal
+                      ? sharedGoal.primaryOwnerEmployeeId === currentUser.id
+                        ? "Shared goal. You are the primary owner and can adjust only the weightage here."
+                        : `Shared goal. Only weightage is editable here. Achievement will sync from ${primaryOwnerName ?? "the primary owner"}.`
+                      : null
+                  }
+                />
+              );
+            })}
           </div>
 
           <div className="space-y-5">

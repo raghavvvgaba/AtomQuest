@@ -8,6 +8,7 @@ import {
   LockOpen,
   PanelsTopLeft,
   ScrollText,
+  Share2,
   TableProperties,
 } from "lucide-react";
 import Link from "next/link";
@@ -60,6 +61,12 @@ const managerNav: NavItem[] = [
     icon: ClipboardCheck,
     match: (pathname) => pathname.startsWith("/manager/check-ins"),
   },
+  {
+    href: "/manager/shared-goals",
+    label: "Shared Goals",
+    icon: Share2,
+    match: (pathname) => pathname.startsWith("/manager/shared-goals"),
+  },
 ];
 
 const adminNav: NavItem[] = [
@@ -74,6 +81,12 @@ const adminNav: NavItem[] = [
     label: "Unlock",
     icon: LockOpen,
     match: (pathname) => pathname.startsWith("/admin/unlock"),
+  },
+  {
+    href: "/admin/shared-goals",
+    label: "Shared Goals",
+    icon: Share2,
+    match: (pathname) => pathname.startsWith("/admin/shared-goals"),
   },
   {
     href: "/admin/reports",

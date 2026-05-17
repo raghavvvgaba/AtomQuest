@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus } from "lucide-react";
+import { Minus, Users } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,18 +25,22 @@ export function GoalRowEditor({
   goal,
   index,
   readOnly,
+  fieldReadOnly,
   errors,
   onFieldChange,
   onRemove,
   allowRemove,
+  sharedGoalLabel,
 }: {
   goal: Goal;
   index: number;
   readOnly: boolean;
+  fieldReadOnly?: Partial<Record<keyof Goal, boolean>>;
   errors?: GoalFieldError;
   onFieldChange: <K extends keyof Goal>(goalId: string, field: K, value: Goal[K]) => void;
   onRemove: (goalId: string) => void;
   allowRemove: boolean;
+  sharedGoalLabel?: string | null;
 }) {
   const showDirectionSelect = goal.uomType === "numeric" || goal.uomType === "percentage";
   const showTargetField = goal.uomType !== "zero";
@@ -67,11 +71,18 @@ export function GoalRowEditor({
         ) : null}
       </div>
 
+      {sharedGoalLabel ? (
+        <div className="mb-5 flex items-center gap-2 rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-700 dark:text-sky-300">
+          <Users className="size-4" />
+          {sharedGoalLabel}
+        </div>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>Thrust area</Label>
           <Select
-            disabled={readOnly}
+            disabled={readOnly || fieldReadOnly?.thrustArea}
             onValueChange={(value) =>
               onFieldChange(goal.id, "thrustArea", value as Goal["thrustArea"])
             }
@@ -94,7 +105,7 @@ export function GoalRowEditor({
         <div className="space-y-2">
           <Label>Goal title</Label>
           <Input
-            disabled={readOnly}
+            disabled={readOnly || fieldReadOnly?.title}
             value={goal.title}
             onChange={(event) => onFieldChange(goal.id, "title", event.target.value)}
           />
@@ -105,7 +116,7 @@ export function GoalRowEditor({
       <div className="mt-4 space-y-2">
         <Label>Goal description</Label>
         <Textarea
-          disabled={readOnly}
+          disabled={readOnly || fieldReadOnly?.description}
           value={goal.description}
           onChange={(event) => onFieldChange(goal.id, "description", event.target.value)}
         />
@@ -116,7 +127,7 @@ export function GoalRowEditor({
         <div className="space-y-2">
           <Label>UoM type</Label>
           <Select
-            disabled={readOnly}
+            disabled={readOnly || fieldReadOnly?.uomType}
             onValueChange={(value) =>
               onFieldChange(goal.id, "uomType", value as Goal["uomType"])
             }
@@ -139,7 +150,7 @@ export function GoalRowEditor({
           <Label>Direction</Label>
           {showDirectionSelect ? (
             <Select
-              disabled={readOnly}
+              disabled={readOnly || fieldReadOnly?.uomDirection}
               onValueChange={(value) =>
                 onFieldChange(goal.id, "uomDirection", value as Goal["uomDirection"])
               }
@@ -172,7 +183,7 @@ export function GoalRowEditor({
           <Label>Target value</Label>
           {showTargetField ? (
             <Input
-              disabled={readOnly}
+              disabled={readOnly || fieldReadOnly?.targetValue}
               type={goal.uomType === "timeline" ? "date" : "number"}
               value={goal.targetValue}
               onChange={(event) => onFieldChange(goal.id, "targetValue", event.target.value)}
@@ -186,7 +197,7 @@ export function GoalRowEditor({
         <div className="space-y-2">
           <Label>Weightage (%)</Label>
           <Input
-            disabled={readOnly}
+            disabled={readOnly || fieldReadOnly?.weightage}
             min={0}
             max={100}
             type="number"

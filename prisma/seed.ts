@@ -11,6 +11,8 @@ import {
   seededCheckIns,
   seededGoalSheets,
   seededGoals,
+  seededSharedGoalAssignments,
+  seededSharedGoals,
   seededUsers,
 } from "../src/lib/seed-data";
 
@@ -145,6 +147,35 @@ async function main() {
     });
   }
 
+  for (const sharedGoal of seededSharedGoals) {
+    await prisma.sharedGoal.upsert({
+      where: { id: sharedGoal.id },
+      update: {
+        title: sharedGoal.title,
+        description: sharedGoal.description,
+        thrustArea: sharedGoal.thrustArea,
+        uomType: sharedGoal.uomType,
+        uomDirection: sharedGoal.uomDirection,
+        targetValue: sharedGoal.targetValue,
+        primaryOwnerEmployeeId: sharedGoal.primaryOwnerEmployeeId,
+        createdByAppUserId: sharedGoal.createdByAppUserId,
+      },
+      create: {
+        id: sharedGoal.id,
+        title: sharedGoal.title,
+        description: sharedGoal.description,
+        thrustArea: sharedGoal.thrustArea,
+        uomType: sharedGoal.uomType,
+        uomDirection: sharedGoal.uomDirection,
+        targetValue: sharedGoal.targetValue,
+        primaryOwnerEmployeeId: sharedGoal.primaryOwnerEmployeeId,
+        createdByAppUserId: sharedGoal.createdByAppUserId,
+        createdAt: new Date(sharedGoal.createdAt),
+        updatedAt: new Date(sharedGoal.updatedAt),
+      },
+    });
+  }
+
   for (const goal of seededGoals) {
     await prisma.goal.upsert({
       where: { id: goal.id },
@@ -153,6 +184,7 @@ async function main() {
         thrustArea: goal.thrustArea,
         title: goal.title,
         description: goal.description,
+        sharedGoalId: goal.sharedGoalId,
         uomType: goal.uomType || null,
         uomDirection: goal.uomDirection || null,
         targetValue: goal.targetValue,
@@ -161,6 +193,7 @@ async function main() {
       create: {
         id: goal.id,
         goalSheetId: goal.goalSheetId,
+        sharedGoalId: goal.sharedGoalId,
         thrustArea: goal.thrustArea,
         title: goal.title,
         description: goal.description,
@@ -168,6 +201,24 @@ async function main() {
         uomDirection: goal.uomDirection || null,
         targetValue: goal.targetValue,
         weightage: goal.weightage,
+      },
+    });
+  }
+
+  for (const assignment of seededSharedGoalAssignments) {
+    await prisma.sharedGoalAssignment.upsert({
+      where: { id: assignment.id },
+      update: {
+        sharedGoalId: assignment.sharedGoalId,
+        employeeId: assignment.employeeId,
+        goalId: assignment.goalId,
+      },
+      create: {
+        id: assignment.id,
+        sharedGoalId: assignment.sharedGoalId,
+        employeeId: assignment.employeeId,
+        goalId: assignment.goalId,
+        createdAt: new Date(assignment.createdAt),
       },
     });
   }

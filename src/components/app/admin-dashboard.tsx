@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LockOpen, ScrollText, TableProperties } from "lucide-react";
+import { LockOpen, ScrollText, Share2, TableProperties } from "lucide-react";
 
 import { PageHeader } from "@/components/app/page-header";
 import { RequireRole } from "@/components/app/require-role";
@@ -26,8 +26,9 @@ export function AdminDashboard() {
           <Metric label="Submitted check-ins" value={counts.checkIns.submitted} />
         </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-4">
           <AdminLink href="/admin/unlock" icon={LockOpen} label="Unlock goal sheets" />
+          <AdminLink href="/admin/shared-goals" icon={Share2} label="Shared goals" />
           <AdminLink href="/admin/reports" icon={TableProperties} label="Reports table" />
           <AdminLink href="/admin/audit-log" icon={ScrollText} label="Audit log" />
         </section>

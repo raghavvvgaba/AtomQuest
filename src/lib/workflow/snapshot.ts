@@ -6,6 +6,8 @@ import type {
   CheckInGoalUpdate,
   Goal,
   GoalSheet,
+  SharedGoal,
+  SharedGoalAssignment,
   ThrustArea,
   User,
 } from "@/lib/types";
@@ -16,6 +18,8 @@ export type WorkflowSnapshot = {
   users: User[];
   goalSheets: GoalSheet[];
   goals: Goal[];
+  sharedGoals: SharedGoal[];
+  sharedGoalAssignments: SharedGoalAssignment[];
   checkIns: CheckIn[];
   checkInGoalUpdates: CheckInGoalUpdate[];
   auditLogs: AuditLogEntry[];
@@ -47,7 +51,7 @@ export async function getWorkflowSnapshot(
 ): Promise<WorkflowSnapshot> {
   await ensureEmployeeGoalSheet(currentUser);
 
-  const [appUsers, goalSheets, goals, checkIns, checkInGoalUpdates, auditLogs] =
+  const [appUsers, goalSheets, goals, sharedGoals, sharedGoalAssignments, checkIns, checkInGoalUpdates, auditLogs] =
     await prisma.$transaction([
       prisma.appUser.findMany({
         include: { authUser: { select: { email: true } } },
@@ -55,6 +59,8 @@ export async function getWorkflowSnapshot(
       }),
       prisma.goalSheet.findMany({ orderBy: { createdAt: "asc" } }),
       prisma.goal.findMany({ orderBy: { createdAt: "asc" } }),
+      prisma.sharedGoal.findMany({ orderBy: { createdAt: "asc" } }),
+      prisma.sharedGoalAssignment.findMany({ orderBy: { createdAt: "asc" } }),
       prisma.checkIn.findMany({ orderBy: { createdAt: "asc" } }),
       prisma.checkInGoalUpdate.findMany({ orderBy: { createdAt: "asc" } }),
       prisma.auditLogEntry.findMany({ orderBy: { createdAt: "desc" } }),
@@ -85,6 +91,7 @@ export async function getWorkflowSnapshot(
       (goal): Goal => ({
         id: goal.id,
         goalSheetId: goal.goalSheetId,
+        sharedGoalId: goal.sharedGoalId,
         thrustArea: normalizeThrustArea(goal.thrustArea),
         title: goal.title,
         description: goal.description,
@@ -92,6 +99,30 @@ export async function getWorkflowSnapshot(
         uomDirection: goal.uomDirection ?? "",
         targetValue: goal.targetValue,
         weightage: goal.weightage,
+      }),
+    ),
+    sharedGoals: sharedGoals.map(
+      (sharedGoal): SharedGoal => ({
+        id: sharedGoal.id,
+        title: sharedGoal.title,
+        description: sharedGoal.description,
+        thrustArea: normalizeThrustArea(sharedGoal.thrustArea) as SharedGoal["thrustArea"],
+        uomType: sharedGoal.uomType,
+        uomDirection: sharedGoal.uomDirection,
+        targetValue: sharedGoal.targetValue,
+        primaryOwnerEmployeeId: sharedGoal.primaryOwnerEmployeeId,
+        createdByAppUserId: sharedGoal.createdByAppUserId,
+        createdAt: sharedGoal.createdAt.toISOString(),
+        updatedAt: sharedGoal.updatedAt.toISOString(),
+      }),
+    ),
+    sharedGoalAssignments: sharedGoalAssignments.map(
+      (assignment): SharedGoalAssignment => ({
+        id: assignment.id,
+        sharedGoalId: assignment.sharedGoalId,
+        employeeId: assignment.employeeId,
+        goalId: assignment.goalId,
+        createdAt: assignment.createdAt.toISOString(),
       }),
     ),
     checkIns: checkIns.map(

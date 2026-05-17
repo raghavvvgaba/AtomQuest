@@ -94,6 +94,7 @@ export function createEmptyGoal(goalSheetId: string): Goal {
   return {
     id: `goal-${crypto.randomUUID()}`,
     goalSheetId,
+    sharedGoalId: null,
     thrustArea: "",
     title: "",
     description: "",

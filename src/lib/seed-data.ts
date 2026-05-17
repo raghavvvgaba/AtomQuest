@@ -4,6 +4,8 @@ import type {
   CheckInGoalUpdate,
   Goal,
   GoalSheet,
+  SharedGoal,
+  SharedGoalAssignment,
   User,
 } from "@/lib/types";
 
@@ -48,6 +50,7 @@ export const seededGoals: Goal[] = [
   {
     id: "goal-01",
     goalSheetId: "sheet-01",
+    sharedGoalId: null,
     thrustArea: "Customer Experience",
     title: "Launch premium onboarding pilot",
     description:
@@ -60,6 +63,7 @@ export const seededGoals: Goal[] = [
   {
     id: "goal-02",
     goalSheetId: "sheet-01",
+    sharedGoalId: null,
     thrustArea: "Customer Experience",
     title: "Reduce first-response lag",
     description:
@@ -72,6 +76,7 @@ export const seededGoals: Goal[] = [
   {
     id: "goal-03",
     goalSheetId: "sheet-02",
+    sharedGoalId: null,
     thrustArea: "Revenue Growth",
     title: "Increase quarterly pipeline conversion",
     description:
@@ -84,6 +89,7 @@ export const seededGoals: Goal[] = [
   {
     id: "goal-04",
     goalSheetId: "sheet-02",
+    sharedGoalId: null,
     thrustArea: "Operational Excellence",
     title: "Lower proposal turnaround time",
     description:
@@ -96,6 +102,7 @@ export const seededGoals: Goal[] = [
   {
     id: "goal-05",
     goalSheetId: "sheet-02",
+    sharedGoalId: null,
     thrustArea: "Compliance / Risk",
     title: "Zero escalation misses",
     description: "Keep unresolved escalation misses at zero for priority customer accounts.",
@@ -107,6 +114,7 @@ export const seededGoals: Goal[] = [
   {
     id: "goal-06",
     goalSheetId: "sheet-03",
+    sharedGoalId: null,
     thrustArea: "People & Capability",
     title: "Complete leadership enablement calendar",
     description:
@@ -119,6 +127,7 @@ export const seededGoals: Goal[] = [
   {
     id: "goal-07",
     goalSheetId: "sheet-03",
+    sharedGoalId: null,
     thrustArea: "People & Capability",
     title: "Improve manager coaching quality",
     description:
@@ -129,6 +138,10 @@ export const seededGoals: Goal[] = [
     weightage: 50,
   },
 ];
+
+export const seededSharedGoals: SharedGoal[] = [];
+
+export const seededSharedGoalAssignments: SharedGoalAssignment[] = [];
 
 export const seededCheckIns: CheckIn[] = [
   {

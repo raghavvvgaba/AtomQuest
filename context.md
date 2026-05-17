@@ -13,31 +13,117 @@ It is separate from `MVP.md`, which remains the main MVP scope document.
 - `/manager/goals/[employeeId]` - manager review page for an employee goal sheet.
 - `/manager/check-ins` - manager check-in review queue.
 - `/manager/check-ins/[employeeId]` - manager check-in detail and review page.
+- `/manager/shared-goals` - manager shared-goal creation and tracking page.
 - `/admin` - admin dashboard with basic MVP counts.
+- `/admin/shared-goals` - admin shared-goal creation and tracking page.
 - `/admin/unlock` - admin page to unlock approved goal sheets.
 - `/admin/reports` - admin planned-vs-actual report table.
 - `/admin/audit-log` - admin simple audit log page.
 
 ## Data Models
 
-These are the minimal in-memory MVP models currently used by the app.
-They are structured so they can later be moved to a real PostgreSQL schema with Neon.
+These are the current persisted MVP models used by the app.
+The source of truth is `prisma/schema.prisma`. This section is a readable summary of that schema.
+
+## Enums
+
+- `AppRole`: `employee | manager | admin`
+- `GoalSheetStatus`: `draft | submitted | returned | approved | unlocked`
+- `UomType`: `numeric | percentage | timeline | zero`
+- `UomDirection`: `min | max | timeline | zero`
+- `Quarter`: `Q1 | Q2 | Q3 | Q4`
+- `CheckInStatus`: `draft | submitted | reviewed`
+- `ProgressStatus`: `not_started | on_track | completed`
+
+## Auth Models
+
+These are Better Auth / session persistence models.
 
 ### User
 
-Purpose: stores demo users across the three MVP roles and the basic reporting relationship.
+Purpose: stores the authentication user record.
 
 Fields:
 
 - `id`
 - `name`
-- `role` (`employee | manager | admin`)
+- `email`
+- `emailVerified`
+- `image` nullable
+- `createdAt`
+- `updatedAt`
+
+### Session
+
+Purpose: stores active login sessions.
+
+Fields:
+
+- `id`
+- `expiresAt`
+- `token`
+- `createdAt`
+- `updatedAt`
+- `ipAddress` nullable
+- `userAgent` nullable
+- `userId`
+
+### Account
+
+Purpose: stores auth provider account data, including credential-password data for demo login.
+
+Fields:
+
+- `id`
+- `accountId`
+- `providerId`
+- `userId`
+- `accessToken` nullable
+- `refreshToken` nullable
+- `idToken` nullable
+- `accessTokenExpiresAt` nullable
+- `refreshTokenExpiresAt` nullable
+- `scope` nullable
+- `password` nullable
+- `createdAt`
+- `updatedAt`
+
+### Verification
+
+Purpose: stores verification / token-style auth records.
+
+Fields:
+
+- `id`
+- `identifier`
+- `value`
+- `expiresAt`
+- `createdAt`
+- `updatedAt`
+
+## App Models
+
+These are the product-specific workflow models.
+
+### AppUser
+
+Purpose: stores the app-level identity, role, and reporting relationship on top of auth users.
+
+Fields:
+
+- `id`
+- `authUserId`
+- `name`
+- `role` (`AppRole`)
 - `managerId` nullable
+- `createdAt`
+- `updatedAt`
 
 Notes:
 
 - `managerId` links an employee to their manager.
 - Manager and Admin users usually have `managerId: null`.
+- This is the model used by the actual app workflow for authorization and routing.
 
 ### GoalSheet
 
@@ -66,6 +152,7 @@ Fields:
 
 - `id`
 - `goalSheetId`
+- `sharedGoalId` nullable
 - `thrustArea`
 - `title`
 - `description`
@@ -73,12 +160,56 @@ Fields:
 - `uomDirection` (`min | max | timeline | zero`)
 - `targetValue`
 - `weightage`
+- `createdAt`
+- `updatedAt`
 
 Notes:
 
 - `targetValue` is stored as a string and interpreted according to `uomType`.
 - `employeeId` is not duplicated here because ownership is derived through `goalSheetId`.
 - The MVP thrust-area options are `Revenue Growth`, `Customer Experience`, `Operational Excellence`, `People & Capability`, `Innovation`, and `Compliance / Risk`.
+- `sharedGoalId` is set when this is a linked shared goal copy.
+
+### SharedGoal
+
+Purpose: stores the source definition for a shared departmental KPI pushed to multiple employees.
+
+Fields:
+
+- `id`
+- `title`
+- `description`
+- `thrustArea`
+- `uomType`
+- `uomDirection`
+- `targetValue`
+- `primaryOwnerEmployeeId`
+- `createdByAppUserId`
+- `createdAt`
+- `updatedAt`
+
+Notes:
+
+- One selected employee recipient is the primary owner.
+- The primary owner's submitted check-in values are the source for sync across linked copies.
+- Admin or Manager can create these, but Manager scope is limited to direct reports.
+
+### SharedGoalAssignment
+
+Purpose: links one shared goal source to each employee recipient and their inserted goal row.
+
+Fields:
+
+- `id`
+- `sharedGoalId`
+- `employeeId`
+- `goalId`
+- `createdAt`
+
+Notes:
+
+- One row exists per employee recipient.
+- `goalId` points to the actual copied goal row inside that employee's goal sheet.
 
 ### CheckIn
 
@@ -110,34 +241,46 @@ Fields:
 - `goalId`
 - `actualAchievement`
 - `progressStatus` (`not_started | on_track | completed`)
+- `createdAt`
+- `updatedAt`
 
 Notes:
 
 - Each check-in usually has one update per goal.
 - Computed progress is not stored; it is derived at runtime from the goal target and actual achievement.
+- For shared goals, non-primary employee updates are synced from the primary owner on submitted check-ins.
 
 ### AuditLogEntry
 
-Purpose: stores simple MVP audit entries for important demo actions.
+Purpose: stores workflow audit entries.
 
 Fields:
 
 - `id`
+- `actorAppUserId` nullable
 - `actorName`
 - `action`
 - `entityLabel`
+- `details` nullable JSON
 - `createdAt`
 
 Notes:
 
-- This is intentionally simple for MVP.
-- It is not a full audit system yet.
+- This stores both coarse workflow events and detailed unlocked-goal edit history.
+- `details` is used for grouped field-level audit entries after unlocked goal-sheet edits.
+- Shared-goal creation and shared-goal sync actions are also logged here.
 
 ## Relationship Summary
 
-- One manager `User` can have many employee `User` records through `managerId`.
-- One employee `User` has one active `GoalSheet` in the MVP.
+- One auth `User` has one app-level `AppUser`.
+- One manager `AppUser` can have many employee `AppUser` records through `managerId`.
+- One employee `AppUser` has one active `GoalSheet` in the MVP.
 - One `GoalSheet` has many `Goal` records.
+- One `SharedGoal` has many `SharedGoalAssignment` records.
+- One `SharedGoal` can be linked to many copied `Goal` records through `Goal.sharedGoalId`.
+- One `SharedGoalAssignment` links one employee recipient to one copied `Goal`.
 - One `GoalSheet` has many `CheckIn` records.
 - One `CheckIn` has many `CheckInGoalUpdate` records.
 - One `CheckInGoalUpdate` belongs to one `Goal`.
+- One `AppUser` can create many `SharedGoal` records.
+- One employee `AppUser` can be the primary owner for many `SharedGoal` records.

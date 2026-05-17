@@ -126,6 +126,9 @@ model AppUser {
   authUser   User     @relation(fields: [authUserId], references: [id], onDelete: Cascade)
   goalSheet  GoalSheet?
   auditLogs  AuditLogEntry[]
+  createdSharedGoals SharedGoal[] @relation("SharedGoalCreator")
+  primaryOwnedSharedGoals SharedGoal[] @relation("SharedGoalPrimaryOwner")
+  sharedGoalAssignments SharedGoalAssignment[]
 
   @@index([role])
   @@index([managerId])
@@ -149,6 +152,7 @@ model GoalSheet {
 model Goal {
   id           String       @id
   goalSheetId  String
+  sharedGoalId String?
   thrustArea   String
   title        String
   description  String
@@ -160,9 +164,49 @@ model Goal {
   updatedAt    DateTime     @updatedAt
 
   goalSheet    GoalSheet    @relation(fields: [goalSheetId], references: [id], onDelete: Cascade)
+  sharedGoal   SharedGoal?  @relation(fields: [sharedGoalId], references: [id], onDelete: SetNull)
   checkInUpdates CheckInGoalUpdate[]
+  sharedGoalAssignment SharedGoalAssignment?
 
   @@index([goalSheetId])
+  @@index([sharedGoalId])
+}
+
+model SharedGoal {
+  id                     String                 @id
+  title                  String
+  description            String
+  thrustArea             String
+  uomType                UomType
+  uomDirection           UomDirection
+  targetValue            String
+  primaryOwnerEmployeeId String
+  createdByAppUserId     String
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  primaryOwner           AppUser                @relation("SharedGoalPrimaryOwner", fields: [primaryOwnerEmployeeId], references: [id], onDelete: Cascade)
+  createdBy              AppUser                @relation("SharedGoalCreator", fields: [createdByAppUserId], references: [id], onDelete: Cascade)
+  assignments            SharedGoalAssignment[]
+  goals                  Goal[]
+
+  @@index([primaryOwnerEmployeeId])
+  @@index([createdByAppUserId])
+}
+
+model SharedGoalAssignment {
+  id           String     @id
+  sharedGoalId String
+  employeeId   String
+  goalId       String     @unique
+  createdAt    DateTime   @default(now())
+
+  sharedGoal   SharedGoal @relation(fields: [sharedGoalId], references: [id], onDelete: Cascade)
+  employee     AppUser    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  goal         Goal       @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@unique([sharedGoalId, employeeId])
+  @@index([employeeId])
 }
 
 model CheckIn {

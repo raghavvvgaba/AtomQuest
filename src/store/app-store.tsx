@@ -26,6 +26,11 @@ import type {
   GoalSheetValidationResult,
   Quarter,
   Role,
+  SharedGoal,
+  SharedGoalAssignment,
+  ThrustArea,
+  UomDirection,
+  UomType,
   User,
 } from "@/lib/types";
 import type { WorkflowSnapshot } from "@/lib/workflow/snapshot";
@@ -35,6 +40,8 @@ type AppState = {
   users: User[];
   goalSheets: GoalSheet[];
   goals: Goal[];
+  sharedGoals: SharedGoal[];
+  sharedGoalAssignments: SharedGoalAssignment[];
   checkIns: CheckIn[];
   checkInGoalUpdates: CheckInGoalUpdate[];
   auditLogs: AuditLogEntry[];
@@ -44,6 +51,17 @@ type SaveGoalSheetPayload = {
   managerComment?: string | null;
 };
 
+type CreateSharedGoalInput = {
+  title: string;
+  description: string;
+  thrustArea: ThrustArea;
+  uomType: UomType;
+  uomDirection: UomDirection;
+  targetValue: string;
+  employeeIds: string[];
+  primaryOwnerEmployeeId: string;
+};
+
 type AppStoreContextValue = {
   state: AppState;
   currentUser: User | null;
@@ -51,6 +69,9 @@ type AppStoreContextValue = {
   getDefaultUserByRole: (role: Role) => User | undefined;
   getGoalSheetByEmployee: (employeeId: string) => GoalSheet | undefined;
   getGoalsByGoalSheet: (goalSheetId: string) => Goal[];
+  getSharedGoalById: (sharedGoalId: string) => SharedGoal | undefined;
+  getSharedGoalAssignmentByGoalId: (goalId: string) => SharedGoalAssignment | undefined;
+  getSharedGoalsCreatedBy: (creatorId: string) => SharedGoal[];
   getManagerTeam: (managerId: string) => User[];
   getSubmittedSheetsAwaitingManagerAction: (managerId: string) => GoalSheet[];
   getCheckInsByGoalSheet: (goalSheetId: string) => CheckIn[];
@@ -119,6 +140,7 @@ type AppStoreContextValue = {
     managerComment?: string,
   ) => Promise<boolean>;
   unlockGoalSheet: (employeeId: string) => Promise<boolean>;
+  createSharedGoal: (input: CreateSharedGoalInput) => Promise<{ success: boolean; error?: string }>;
   createAuditLogEntry: (payload: Omit<AuditLogEntry, "id" | "createdAt">) => void;
 };
 
@@ -168,6 +190,8 @@ const emptyState: AppState = {
   users: [],
   goalSheets: [],
   goals: [],
+  sharedGoals: [],
+  sharedGoalAssignments: [],
   checkIns: [],
   checkInGoalUpdates: [],
   auditLogs: [],
@@ -283,6 +307,11 @@ function appReducer(state: AppState, action: Action): AppState {
         return state;
       }
 
+      const goal = state.goals.find((item) => item.id === action.goalId);
+      if (goal?.sharedGoalId) {
+        return state;
+      }
+
       return {
         ...state,
         goals: state.goals.filter((goal) => goal.id !== action.goalId),
@@ -306,11 +335,19 @@ function appReducer(state: AppState, action: Action): AppState {
         goals: state.goals.map((goal) => {
           if (goal.id !== action.goalId || goal.goalSheetId !== goalSheet.id) return goal;
 
+          const isSharedGoal = Boolean(goal.sharedGoalId);
+
           if (action.field === "uomType" && canEmployeeEdit) {
+            if (isSharedGoal) {
+              return goal;
+            }
             return syncGoalTypeDefaults(goal, action.value as Goal["uomType"]);
           }
 
           if (!canEmployeeEdit && !canManagerEdit) return goal;
+          if (canEmployeeEdit && isSharedGoal && action.field !== "weightage") {
+            return goal;
+          }
           if (
             canManagerEdit &&
             !["targetValue", "weightage"].includes(action.field)
@@ -648,6 +685,23 @@ export function AppStoreProvider({
     (goalSheetId: string) =>
       state.goals.filter((goal) => goal.goalSheetId === goalSheetId),
     [state.goals],
+  );
+
+  const getSharedGoalById = useCallback(
+    (sharedGoalId: string) => state.sharedGoals.find((sharedGoal) => sharedGoal.id === sharedGoalId),
+    [state.sharedGoals],
+  );
+
+  const getSharedGoalAssignmentByGoalId = useCallback(
+    (goalId: string) =>
+      state.sharedGoalAssignments.find((assignment) => assignment.goalId === goalId),
+    [state.sharedGoalAssignments],
+  );
+
+  const getSharedGoalsCreatedBy = useCallback(
+    (creatorId: string) =>
+      state.sharedGoals.filter((sharedGoal) => sharedGoal.createdByAppUserId === creatorId),
+    [state.sharedGoals],
   );
 
   const getManagerTeam = useCallback(
@@ -997,11 +1051,26 @@ export function AppStoreProvider({
         return { isValid: false, summary: ["Save a draft before submitting."] };
       }
 
+      const sharedGoalById = new Map(
+        state.sharedGoals.map((sharedGoal) => [sharedGoal.id, sharedGoal]),
+      );
+      const goalById = new Map(state.goals.map((goal) => [goal.id, goal]));
       const updates = state.checkInGoalUpdates.filter(
         (update) => update.checkInId === checkIn.id,
       );
       const hasMissingFields = updates.some(
-        (update) => !update.actualAchievement.trim() || !update.progressStatus,
+        (update) => {
+          const goal = goalById.get(update.goalId);
+          const sharedGoal = goal?.sharedGoalId ? sharedGoalById.get(goal.sharedGoalId) : undefined;
+          const isSyncedSharedRecipient =
+            sharedGoal && sharedGoal.primaryOwnerEmployeeId !== employeeId;
+
+          if (isSyncedSharedRecipient) {
+            return false;
+          }
+
+          return !update.actualAchievement.trim() || !update.progressStatus;
+        },
       );
 
       if (updates.length === 0 || hasMissingFields) {
@@ -1061,6 +1130,24 @@ export function AppStoreProvider({
     [persistWorkflowMutation],
   );
 
+  const createSharedGoal = useCallback(
+    async (input: CreateSharedGoalInput) => {
+      try {
+        await persistWorkflowMutation({
+          action: "createSharedGoal",
+          ...input,
+        });
+        return { success: true };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Shared goal creation failed.",
+        };
+      }
+    },
+    [persistWorkflowMutation],
+  );
+
   const createAuditLogEntry = useCallback(
     (payload: Omit<AuditLogEntry, "id" | "createdAt">) => {
       dispatch({ type: "create-audit-log-entry", payload });
@@ -1076,6 +1163,9 @@ export function AppStoreProvider({
       getDefaultUserByRole,
       getGoalSheetByEmployee,
       getGoalsByGoalSheet,
+      getSharedGoalById,
+      getSharedGoalAssignmentByGoalId,
+      getSharedGoalsCreatedBy,
       getManagerTeam,
       getSubmittedSheetsAwaitingManagerAction,
       getCheckInsByGoalSheet,
@@ -1099,6 +1189,7 @@ export function AppStoreProvider({
       submitCheckIn,
       reviewCheckIn,
       unlockGoalSheet,
+      createSharedGoal,
       createAuditLogEntry,
     }),
     [
@@ -1108,6 +1199,9 @@ export function AppStoreProvider({
       getDefaultUserByRole,
       getGoalSheetByEmployee,
       getGoalsByGoalSheet,
+      getSharedGoalById,
+      getSharedGoalAssignmentByGoalId,
+      getSharedGoalsCreatedBy,
       getManagerTeam,
       getSubmittedSheetsAwaitingManagerAction,
       getCheckInsByGoalSheet,
@@ -1131,6 +1225,7 @@ export function AppStoreProvider({
       submitCheckIn,
       reviewCheckIn,
       unlockGoalSheet,
+      createSharedGoal,
       createAuditLogEntry,
     ],
   );

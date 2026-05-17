@@ -58,6 +58,7 @@ export type GoalSheet = {
 export type Goal = {
   id: string;
   goalSheetId: string;
+  sharedGoalId: string | null;
   thrustArea: ThrustArea | "";
   title: string;
   description: string;
@@ -65,6 +66,28 @@ export type Goal = {
   uomDirection: UomDirection | "";
   targetValue: string;
   weightage: number | null;
+};
+
+export type SharedGoal = {
+  id: string;
+  title: string;
+  description: string;
+  thrustArea: ThrustArea;
+  uomType: UomType;
+  uomDirection: UomDirection;
+  targetValue: string;
+  primaryOwnerEmployeeId: string;
+  createdByAppUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SharedGoalAssignment = {
+  id: string;
+  sharedGoalId: string;
+  employeeId: string;
+  goalId: string;
+  createdAt: string;
 };
 
 export type CheckIn = {

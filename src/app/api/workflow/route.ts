@@ -4,7 +4,16 @@ import { Prisma } from "@/generated/prisma/client";
 import { validateGoalSheet } from "@/lib/goal-sheet";
 import { auth } from "@/lib/auth/provider";
 import { prisma } from "@/lib/db/prisma";
-import type { AuditLogEntry, CheckInGoalUpdateDraft, Goal, GoalSheet, Quarter } from "@/lib/types";
+import type {
+  AuditLogEntry,
+  CheckInGoalUpdateDraft,
+  Goal,
+  GoalSheet,
+  Quarter,
+  ThrustArea,
+  UomDirection,
+  UomType,
+} from "@/lib/types";
 import { getWorkflowSnapshot } from "@/lib/workflow/snapshot";
 
 type WorkflowMutation =
@@ -33,24 +42,35 @@ type WorkflowMutation =
   | {
       action: "saveCheckInDraft";
       employeeId: string;
-      quarter: "Q1" | "Q2" | "Q3" | "Q4";
+      quarter: Quarter;
       updates: CheckInGoalUpdateDraft[];
     }
   | {
       action: "submitCheckIn";
       employeeId: string;
-      quarter: "Q1" | "Q2" | "Q3" | "Q4";
+      quarter: Quarter;
       updates: CheckInGoalUpdateDraft[];
     }
   | {
       action: "reviewCheckIn";
       employeeId: string;
-      quarter: "Q1" | "Q2" | "Q3" | "Q4";
+      quarter: Quarter;
       managerComment?: string;
     }
   | {
       action: "unlockGoalSheet";
       employeeId: string;
+    }
+  | {
+      action: "createSharedGoal";
+      title: string;
+      description: string;
+      thrustArea: ThrustArea;
+      uomType: UomType;
+      uomDirection: UomDirection;
+      targetValue: string;
+      employeeIds: string[];
+      primaryOwnerEmployeeId: string;
     };
 
 const AUDITED_GOAL_FIELDS = [
@@ -64,7 +84,6 @@ const AUDITED_GOAL_FIELDS = [
 ] as const;
 
 type AuditedGoalField = (typeof AUDITED_GOAL_FIELDS)[number];
-
 type GoalAuditDetails = NonNullable<AuditLogEntry["details"]>;
 
 function getComparableGoalValue(goal: Goal, field: AuditedGoalField): string | number | null {
@@ -157,6 +176,40 @@ function buildUnlockedGoalAuditDetails(
   return goalChanges.length > 0 ? { goalChanges } : null;
 }
 
+function toClientGoal(goal: {
+  id: string;
+  goalSheetId: string;
+  sharedGoalId: string | null;
+  thrustArea: string;
+  title: string;
+  description: string;
+  uomType: UomType | null;
+  uomDirection: UomDirection | null;
+  targetValue: string;
+  weightage: number | null;
+}): Goal {
+  return {
+    id: goal.id,
+    goalSheetId: goal.goalSheetId,
+    sharedGoalId: goal.sharedGoalId,
+    thrustArea: goal.thrustArea as Goal["thrustArea"],
+    title: goal.title,
+    description: goal.description,
+    uomType: goal.uomType ?? "",
+    uomDirection: goal.uomDirection ?? "",
+    targetValue: goal.targetValue,
+    weightage: goal.weightage,
+  };
+}
+
+function dedupe(values: string[]) {
+  return Array.from(new Set(values));
+}
+
+function isEditableGoalSheetStatus(status: GoalSheet["status"]) {
+  return ["draft", "returned", "unlocked"].includes(status);
+}
+
 async function getAuthenticatedAppUser(request: Request) {
   const session = await auth.api.getSession({
     headers: request.headers,
@@ -237,22 +290,6 @@ export async function POST(request: Request) {
     }
   }
 
-  if (body.action === "submitCheckIn") {
-    const hasMissingFields = body.updates.some(
-      (update) => !update.actualAchievement.trim() || !update.progressStatus,
-    );
-
-    if (body.updates.length === 0 || hasMissingFields) {
-      return NextResponse.json(
-        {
-          isValid: false,
-          summary: ["Enter actual achievement and progress status for every goal."],
-        },
-        { status: 400 },
-      );
-    }
-  }
-
   try {
     await prisma.$transaction(async (tx) => {
       const createAuditLog = async (
@@ -272,6 +309,12 @@ export async function POST(request: Request) {
         });
       };
 
+      const getGoalsForSheet = async (goalSheetId: string) =>
+        tx.goal.findMany({
+          where: { goalSheetId },
+          orderBy: { createdAt: "asc" },
+        });
+
       const persistGoals = async (goalSheetId: string, goals: Goal[]) => {
         const nextGoalIds = goals.map((goal) => goal.id);
 
@@ -290,6 +333,7 @@ export async function POST(request: Request) {
           await tx.goal.upsert({
             where: { id: goal.id },
             update: {
+              sharedGoalId: goal.sharedGoalId,
               thrustArea: goal.thrustArea,
               title: goal.title,
               description: goal.description,
@@ -301,6 +345,7 @@ export async function POST(request: Request) {
             create: {
               id: goal.id,
               goalSheetId,
+              sharedGoalId: goal.sharedGoalId,
               thrustArea: goal.thrustArea,
               title: goal.title,
               description: goal.description,
@@ -313,11 +358,88 @@ export async function POST(request: Request) {
         }
       };
 
-      const upsertCheckInDraft = async (
-        employeeId: string,
-        quarter: Quarter,
-        updates: CheckInGoalUpdateDraft[],
+      const enforceEditableSharedGoalRules = async (
+        goals: Goal[],
+        goalSheetId?: string,
       ) => {
+        const persistedGoals = goalSheetId ? await getGoalsForSheet(goalSheetId) : [];
+        const persistedSharedGoals = persistedGoals.filter((goal) => goal.sharedGoalId);
+        const nextGoalMap = new Map(goals.map((goal) => [goal.id, goal]));
+
+        for (const persistedGoal of persistedSharedGoals) {
+          const nextGoal = nextGoalMap.get(persistedGoal.id);
+          if (!nextGoal) {
+            throw new Error("Shared goals cannot be removed from the goal sheet.");
+          }
+
+          if (
+            nextGoal.thrustArea !== persistedGoal.thrustArea ||
+            nextGoal.title !== persistedGoal.title ||
+            nextGoal.description !== persistedGoal.description ||
+            (nextGoal.uomType || null) !== persistedGoal.uomType ||
+            (nextGoal.uomDirection || null) !== persistedGoal.uomDirection ||
+            nextGoal.targetValue !== persistedGoal.targetValue
+          ) {
+            throw new Error("Shared goals allow employee edits only for weightage.");
+          }
+        }
+
+        const invalidSharedGoal = goals.find(
+          (goal) =>
+            goal.sharedGoalId &&
+            !persistedGoals.some(
+              (persistedGoal) =>
+                persistedGoal.id === goal.id && persistedGoal.sharedGoalId === goal.sharedGoalId,
+            ),
+        );
+
+        if (invalidSharedGoal) {
+          throw new Error("Shared goals can be added only by Admin or Manager.");
+        }
+      };
+
+      const buildManagerReviewGoals = async (goalSheetId: string, goals: Goal[]) => {
+        const persistedGoals = await getGoalsForSheet(goalSheetId);
+        const persistedGoalMap = new Map(persistedGoals.map((goal) => [goal.id, goal]));
+
+        return goals.map((goal) => {
+          const persistedGoal = persistedGoalMap.get(goal.id);
+          if (!persistedGoal) {
+            throw new Error("Manager review can update only existing goals.");
+          }
+
+          return {
+            ...toClientGoal(persistedGoal),
+            targetValue: goal.targetValue,
+            weightage: goal.weightage,
+          };
+        });
+      };
+
+      const syncSharedGoalTargetValues = async (goals: Goal[], previousGoals: Goal[]) => {
+        const previousGoalMap = new Map(previousGoals.map((goal) => [goal.id, goal]));
+        const sharedGoalsToSync = new Map<string, string>();
+
+        for (const goal of goals) {
+          if (!goal.sharedGoalId) continue;
+          const previousGoal = previousGoalMap.get(goal.id);
+          if (!previousGoal || previousGoal.targetValue === goal.targetValue) continue;
+          sharedGoalsToSync.set(goal.sharedGoalId, goal.targetValue);
+        }
+
+        for (const [sharedGoalId, targetValue] of sharedGoalsToSync) {
+          await tx.sharedGoal.update({
+            where: { id: sharedGoalId },
+            data: { targetValue },
+          });
+          await tx.goal.updateMany({
+            where: { sharedGoalId },
+            data: { targetValue },
+          });
+        }
+      };
+
+      const getCheckInEligibleGoals = async (employeeId: string) => {
         const goalSheet = await tx.goalSheet.findUnique({
           where: { employeeId },
         });
@@ -326,26 +448,74 @@ export async function POST(request: Request) {
           throw new Error("Check-in is available only after goal sheet approval.");
         }
 
-        const checkIn = await tx.checkIn.upsert({
+        const goals = await tx.goal.findMany({
+          where: { goalSheetId: goalSheet.id },
+          include: { sharedGoal: true },
+          orderBy: { createdAt: "asc" },
+        });
+
+        return { goalSheet, goals };
+      };
+
+      const upsertCheckInDraft = async (
+        employeeId: string,
+        quarter: Quarter,
+        updates: CheckInGoalUpdateDraft[],
+      ) => {
+        const { goalSheet, goals } = await getCheckInEligibleGoals(employeeId);
+        const goalMap = new Map(goals.map((goal) => [goal.id, goal]));
+
+        const existingCheckIn = await tx.checkIn.findUnique({
           where: {
             goalSheetId_quarter: {
               goalSheetId: goalSheet.id,
               quarter,
             },
           },
-          update: {
-            status: "draft",
-          },
-          create: {
-            id: `check-in-${crypto.randomUUID()}`,
-            goalSheetId: goalSheet.id,
-            quarter,
-            status: "draft",
-            managerComment: null,
-          },
         });
 
-        const nextGoalIds = updates.map((update) => update.goalId);
+        if (existingCheckIn && existingCheckIn.status !== "draft") {
+          throw new Error("Only draft check-ins can be edited.");
+        }
+
+        const checkIn =
+          existingCheckIn ??
+          (await tx.checkIn.create({
+            data: {
+              id: `check-in-${crypto.randomUUID()}`,
+              goalSheetId: goalSheet.id,
+              quarter,
+              status: "draft",
+              managerComment: null,
+            },
+          }));
+
+        const existingUpdates = await tx.checkInGoalUpdate.findMany({
+          where: { checkInId: checkIn.id },
+        });
+        const existingUpdateMap = new Map(existingUpdates.map((update) => [update.goalId, update]));
+
+        const allowedUpdates = updates.map((update) => {
+          const goal = goalMap.get(update.goalId);
+          if (!goal) {
+            throw new Error("Check-in contains an unknown goal.");
+          }
+
+          const isSyncedSharedGoal =
+            goal.sharedGoal && goal.sharedGoal.primaryOwnerEmployeeId !== employeeId;
+          if (!isSyncedSharedGoal) {
+            return update;
+          }
+
+          const existingUpdate = existingUpdateMap.get(update.goalId);
+          return {
+            goalId: update.goalId,
+            actualAchievement: existingUpdate?.actualAchievement ?? "",
+            progressStatus: (existingUpdate?.progressStatus ?? "") as CheckInGoalUpdateDraft["progressStatus"],
+          };
+        });
+
+        const nextGoalIds = allowedUpdates.map((update) => update.goalId);
         if (nextGoalIds.length === 0) {
           await tx.checkInGoalUpdate.deleteMany({
             where: { checkInId: checkIn.id },
@@ -359,7 +529,7 @@ export async function POST(request: Request) {
           });
         }
 
-        for (const update of updates) {
+        for (const update of allowedUpdates) {
           await tx.checkInGoalUpdate.upsert({
             where: {
               checkInId_goalId: {
@@ -381,7 +551,91 @@ export async function POST(request: Request) {
           });
         }
 
-        return checkIn;
+        return { checkIn, goals };
+      };
+
+      const syncSharedGoalCheckInValues = async (
+        quarter: Quarter,
+        employeeId: string,
+        updates: CheckInGoalUpdateDraft[],
+        goals: Awaited<ReturnType<typeof getCheckInEligibleGoals>>["goals"],
+      ) => {
+        const goalMap = new Map(goals.map((goal) => [goal.id, goal]));
+        const syncCandidates = updates.filter((update) => {
+          const goal = goalMap.get(update.goalId);
+          return Boolean(
+            goal?.sharedGoalId &&
+              goal.sharedGoal?.primaryOwnerEmployeeId === employeeId &&
+              update.actualAchievement.trim() &&
+              update.progressStatus,
+          );
+        });
+
+        for (const update of syncCandidates) {
+          const goal = goalMap.get(update.goalId);
+          if (!goal?.sharedGoalId) continue;
+
+          const assignments = await tx.sharedGoalAssignment.findMany({
+            where: { sharedGoalId: goal.sharedGoalId },
+            include: {
+              employee: true,
+              goal: {
+                include: {
+                  goalSheet: true,
+                },
+              },
+              sharedGoal: true,
+            },
+          });
+
+          for (const assignment of assignments) {
+            if (assignment.goal.goalSheet.status !== "approved") {
+              continue;
+            }
+
+            const linkedCheckIn = await tx.checkIn.upsert({
+              where: {
+                goalSheetId_quarter: {
+                  goalSheetId: assignment.goal.goalSheetId,
+                  quarter,
+                },
+              },
+              update: {},
+              create: {
+                id: `check-in-${crypto.randomUUID()}`,
+                goalSheetId: assignment.goal.goalSheetId,
+                quarter,
+                status: assignment.employeeId === employeeId ? "submitted" : "draft",
+                managerComment: null,
+              },
+            });
+
+            await tx.checkInGoalUpdate.upsert({
+              where: {
+                checkInId_goalId: {
+                  checkInId: linkedCheckIn.id,
+                  goalId: assignment.goalId,
+                },
+              },
+              update: {
+                actualAchievement: update.actualAchievement,
+                progressStatus: update.progressStatus || null,
+              },
+              create: {
+                id: `check-in-update-${crypto.randomUUID()}`,
+                checkInId: linkedCheckIn.id,
+                goalId: assignment.goalId,
+                actualAchievement: update.actualAchievement,
+                progressStatus: update.progressStatus || null,
+              },
+            });
+          }
+
+          await createAuditLog(
+            `Synced shared goal achievement for ${quarter}`,
+            goal.sharedGoal?.title ?? goal.title,
+          );
+        }
       };
 
       switch (body.action) {
@@ -394,16 +648,15 @@ export async function POST(request: Request) {
             where: { employeeId: body.employeeId },
           });
           const previousGoals =
-            existing?.status === "unlocked"
-              ? await tx.goal.findMany({
-                  where: { goalSheetId: existing.id },
-                  orderBy: { createdAt: "asc" },
-                })
+            existing?.status === "unlocked" && existing.id
+              ? await getGoalsForSheet(existing.id)
               : [];
 
-          if (existing && !["draft", "returned", "unlocked"].includes(existing.status)) {
+          if (existing && !isEditableGoalSheetStatus(existing.status)) {
             throw new Error("Only editable goal sheets can be saved.");
           }
+
+          await enforceEditableSharedGoalRules(body.goals, existing?.id);
 
           const goalSheet = await tx.goalSheet.upsert({
             where: { employeeId: body.employeeId },
@@ -423,21 +676,10 @@ export async function POST(request: Request) {
           });
 
           await persistGoals(goalSheet.id, body.goals);
+
           if (existing?.status === "unlocked") {
             const auditDetails = buildUnlockedGoalAuditDetails(
-              previousGoals.map(
-                (goal): Goal => ({
-                  id: goal.id,
-                  goalSheetId: goal.goalSheetId,
-                  thrustArea: goal.thrustArea as Goal["thrustArea"],
-                  title: goal.title,
-                  description: goal.description,
-                  uomType: goal.uomType ?? "",
-                  uomDirection: goal.uomDirection ?? "",
-                  targetValue: goal.targetValue,
-                  weightage: goal.weightage,
-                }),
-              ),
+              previousGoals.map(toClientGoal),
               body.goals,
             );
 
@@ -461,15 +703,15 @@ export async function POST(request: Request) {
             where: { employeeId: body.employeeId },
           });
           const previousGoals =
-            existing?.status === "unlocked"
-              ? await tx.goal.findMany({
-                  where: { goalSheetId: existing.id },
-                  orderBy: { createdAt: "asc" },
-                })
+            existing?.status === "unlocked" && existing.id
+              ? await getGoalsForSheet(existing.id)
               : [];
-          if (existing && !["draft", "returned", "unlocked"].includes(existing.status)) {
+
+          if (existing && !isEditableGoalSheetStatus(existing.status)) {
             throw new Error("Only editable goal sheets can be submitted.");
           }
+
+          await enforceEditableSharedGoalRules(body.goals, existing?.id);
 
           const goalSheet = await tx.goalSheet.upsert({
             where: { employeeId: body.employeeId },
@@ -483,21 +725,10 @@ export async function POST(request: Request) {
           });
 
           await persistGoals(goalSheet.id, body.goals);
+
           if (existing?.status === "unlocked") {
             const auditDetails = buildUnlockedGoalAuditDetails(
-              previousGoals.map(
-                (goal): Goal => ({
-                  id: goal.id,
-                  goalSheetId: goal.goalSheetId,
-                  thrustArea: goal.thrustArea as Goal["thrustArea"],
-                  title: goal.title,
-                  description: goal.description,
-                  uomType: goal.uomType ?? "",
-                  uomDirection: goal.uomDirection ?? "",
-                  targetValue: goal.targetValue,
-                  weightage: goal.weightage,
-                }),
-              ),
+              previousGoals.map(toClientGoal),
               body.goals,
             );
 
@@ -535,7 +766,11 @@ export async function POST(request: Request) {
             throw new Error("Goal sheet is not reviewable.");
           }
 
-          await persistGoals(goalSheet.id, body.goals);
+          const previousGoals = await getGoalsForSheet(goalSheet.id);
+          const reviewGoals = await buildManagerReviewGoals(goalSheet.id, body.goals);
+
+          await persistGoals(goalSheet.id, reviewGoals);
+          await syncSharedGoalTargetValues(reviewGoals, previousGoals.map(toClientGoal));
           await tx.goalSheet.update({
             where: { id: goalSheet.id },
             data: {
@@ -570,7 +805,11 @@ export async function POST(request: Request) {
             throw new Error("Goal sheet is not reviewable.");
           }
 
-          await persistGoals(goalSheet.id, body.goals);
+          const previousGoals = await getGoalsForSheet(goalSheet.id);
+          const reviewGoals = await buildManagerReviewGoals(goalSheet.id, body.goals);
+
+          await persistGoals(goalSheet.id, reviewGoals);
+          await syncSharedGoalTargetValues(reviewGoals, previousGoals.map(toClientGoal));
           await tx.goalSheet.update({
             where: { id: goalSheet.id },
             data: { status: "approved" },
@@ -593,11 +832,34 @@ export async function POST(request: Request) {
             throw new Error("Forbidden");
           }
 
-          const checkIn = await upsertCheckInDraft(body.employeeId, body.quarter, body.updates);
+          const { checkIn, goals } = await upsertCheckInDraft(
+            body.employeeId,
+            body.quarter,
+            body.updates,
+          );
+
+          const goalMap = new Map(goals.map((goal) => [goal.id, goal]));
+          const hasMissingFields = body.updates.some((update) => {
+            const goal = goalMap.get(update.goalId);
+            const isSyncedSharedGoal =
+              goal?.sharedGoal && goal.sharedGoal.primaryOwnerEmployeeId !== body.employeeId;
+
+            if (isSyncedSharedGoal) {
+              return false;
+            }
+
+            return !update.actualAchievement.trim() || !update.progressStatus;
+          });
+
+          if (body.updates.length === 0 || hasMissingFields) {
+            throw new Error("Enter actual achievement and progress status for every goal you own.");
+          }
+
           await tx.checkIn.update({
             where: { id: checkIn.id },
             data: { status: "submitted" },
           });
+          await syncSharedGoalCheckInValues(body.quarter, body.employeeId, body.updates, goals);
           await createAuditLog(`Submitted ${body.quarter} check-in`, appUser.name);
           break;
         }
@@ -671,6 +933,132 @@ export async function POST(request: Request) {
             throw new Error("Only approved goal sheets can be unlocked.");
           }
           await createAuditLog("Unlocked goal sheet", employee.name);
+          break;
+        }
+
+        case "createSharedGoal": {
+          if (!["admin", "manager"].includes(appUser.role)) {
+            throw new Error("Forbidden");
+          }
+
+          const title = body.title.trim();
+          const description = body.description.trim();
+          const targetValue = body.targetValue.trim();
+          const employeeIds = dedupe(body.employeeIds.filter(Boolean));
+
+          if (!title || !description || !targetValue) {
+            throw new Error("Complete all shared goal fields before creating it.");
+          }
+
+          if (employeeIds.length < 2) {
+            throw new Error("Select at least two employees for a shared goal.");
+          }
+
+          if (!employeeIds.includes(body.primaryOwnerEmployeeId)) {
+            throw new Error("The primary owner must be one of the selected employees.");
+          }
+
+          const employeeWhere: Prisma.AppUserWhereInput = {
+            id: { in: employeeIds },
+            role: "employee",
+          };
+
+          if (appUser.role === "manager") {
+            employeeWhere.managerId = appUser.id;
+          }
+
+          const employees = await tx.appUser.findMany({
+            where: employeeWhere,
+            orderBy: { name: "asc" },
+          });
+
+          if (employees.length !== employeeIds.length) {
+            throw new Error(
+              appUser.role === "manager"
+                ? "Managers can create shared goals only for direct reports."
+                : "Some selected employees are unavailable.",
+            );
+          }
+
+          const employeeNamesById = new Map(employees.map((employee) => [employee.id, employee.name]));
+          const unavailableNames: string[] = [];
+
+          const goalSheets = await Promise.all(
+            employeeIds.map(async (employeeId) => {
+              const goalSheet = await tx.goalSheet.upsert({
+                where: { employeeId },
+                update: {},
+                create: {
+                  id: `sheet-${employeeId}`,
+                  employeeId,
+                  status: "draft",
+                  managerComment: null,
+                },
+              });
+
+              const goalCount = await tx.goal.count({
+                where: { goalSheetId: goalSheet.id },
+              });
+
+              if (!isEditableGoalSheetStatus(goalSheet.status)) {
+                unavailableNames.push(employeeNamesById.get(employeeId) ?? employeeId);
+              } else if (goalCount >= 8) {
+                unavailableNames.push(employeeNamesById.get(employeeId) ?? employeeId);
+              }
+
+              return goalSheet;
+            }),
+          );
+
+          if (unavailableNames.length > 0) {
+            throw new Error(
+              `Shared goals can be added only to editable sheets with room for one more goal. Check: ${unavailableNames.join(", ")}.`,
+            );
+          }
+
+          const sharedGoalId = `shared-goal-${crypto.randomUUID()}`;
+          await tx.sharedGoal.create({
+            data: {
+              id: sharedGoalId,
+              title,
+              description,
+              thrustArea: body.thrustArea,
+              uomType: body.uomType,
+              uomDirection: body.uomDirection,
+              targetValue,
+              primaryOwnerEmployeeId: body.primaryOwnerEmployeeId,
+              createdByAppUserId: appUser.id,
+            },
+          });
+
+          for (const goalSheet of goalSheets) {
+            const goalId = `goal-${crypto.randomUUID()}`;
+            await tx.goal.create({
+              data: {
+                id: goalId,
+                goalSheetId: goalSheet.id,
+                sharedGoalId,
+                thrustArea: body.thrustArea,
+                title,
+                description,
+                uomType: body.uomType,
+                uomDirection: body.uomDirection,
+                targetValue,
+                weightage: null,
+              },
+            });
+
+            await tx.sharedGoalAssignment.create({
+              data: {
+                id: `shared-assignment-${crypto.randomUUID()}`,
+                sharedGoalId,
+                employeeId: goalSheet.employeeId,
+                goalId,
+              },
+            });
+          }
+
+          await createAuditLog("Created shared goal", title);
           break;
         }
       }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ClipboardCheck, RefreshCcw, SendHorizontal } from "lucide-react";
+import { ArrowRight, CheckCircle2, ClipboardCheck, RefreshCcw, SendHorizontal, Share2 } from "lucide-react";
 
 import { PageHeader } from "@/components/app/page-header";
 import { RequireRole } from "@/components/app/require-role";
@@ -48,6 +48,15 @@ export function ManagerDashboard() {
         <PageHeader
           eyebrow="Manager review"
           title="Manager dashboard"
+          actions={
+            <Link
+              className={cn(buttonVariants({ variant: "outline" }))}
+              href="/manager/shared-goals"
+            >
+              <Share2 className="size-4" />
+              Shared goals
+            </Link>
+          }
         />
 
         <section className="grid gap-5 md:grid-cols-4">
