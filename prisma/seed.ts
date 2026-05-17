@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { hashPassword } from "better-auth/crypto";
+import { Prisma } from "../src/generated/prisma/client";
 
 import { demoCredentials } from "../src/lib/auth/demo-users";
 import { prisma } from "../src/lib/db/prisma";
@@ -233,6 +234,7 @@ async function main() {
         actorName: log.actorName,
         action: log.action,
         entityLabel: log.entityLabel,
+        details: log.details ? (log.details as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
       create: {
         id: log.id,
@@ -240,6 +242,7 @@ async function main() {
         actorName: log.actorName,
         action: log.action,
         entityLabel: log.entityLabel,
+        details: log.details ? (log.details as Prisma.InputJsonValue) : Prisma.JsonNull,
         createdAt: new Date(log.createdAt),
       },
     });

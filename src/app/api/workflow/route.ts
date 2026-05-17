@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 
 import { validateGoalSheet } from "@/lib/goal-sheet";
 import { auth } from "@/lib/auth/provider";
 import { prisma } from "@/lib/db/prisma";
-import type { CheckInGoalUpdateDraft, Goal, GoalSheet, Quarter } from "@/lib/types";
+import type { AuditLogEntry, CheckInGoalUpdateDraft, Goal, GoalSheet, Quarter } from "@/lib/types";
 import { getWorkflowSnapshot } from "@/lib/workflow/snapshot";
 
 type WorkflowMutation =
@@ -51,6 +52,110 @@ type WorkflowMutation =
       action: "unlockGoalSheet";
       employeeId: string;
     };
+
+const AUDITED_GOAL_FIELDS = [
+  "thrustArea",
+  "title",
+  "description",
+  "uomType",
+  "uomDirection",
+  "targetValue",
+  "weightage",
+] as const;
+
+type AuditedGoalField = (typeof AUDITED_GOAL_FIELDS)[number];
+
+type GoalAuditDetails = NonNullable<AuditLogEntry["details"]>;
+
+function getComparableGoalValue(goal: Goal, field: AuditedGoalField): string | number | null {
+  const value = goal[field];
+  return value === "" ? null : value;
+}
+
+function buildGoalFieldChanges(previousGoal: Goal, nextGoal: Goal) {
+  return AUDITED_GOAL_FIELDS.flatMap((field) => {
+    const previousValue = getComparableGoalValue(previousGoal, field);
+    const nextValue = getComparableGoalValue(nextGoal, field);
+
+    if (previousValue === nextValue) {
+      return [];
+    }
+
+    return [
+      {
+        field,
+        from: previousValue,
+        to: nextValue,
+      },
+    ];
+  });
+}
+
+function buildAddedOrRemovedGoalChanges(
+  goal: Goal,
+  changeType: "added" | "removed",
+) {
+  return AUDITED_GOAL_FIELDS.flatMap((field) => {
+    const value = getComparableGoalValue(goal, field);
+
+    if (value === null) {
+      return [];
+    }
+
+    return [
+      {
+        field,
+        from: changeType === "removed" ? value : null,
+        to: changeType === "added" ? value : null,
+      },
+    ];
+  });
+}
+
+function buildUnlockedGoalAuditDetails(
+  previousGoals: Goal[],
+  nextGoals: Goal[],
+): GoalAuditDetails | null {
+  const previousGoalMap = new Map(previousGoals.map((goal) => [goal.id, goal]));
+  const nextGoalMap = new Map(nextGoals.map((goal) => [goal.id, goal]));
+  const goalChanges: GoalAuditDetails["goalChanges"] = [];
+
+  for (const nextGoal of nextGoals) {
+    const previousGoal = previousGoalMap.get(nextGoal.id);
+    if (!previousGoal) {
+      goalChanges.push({
+        goalId: nextGoal.id,
+        goalTitle: nextGoal.title || "Untitled goal",
+        changeType: "added",
+        fieldChanges: buildAddedOrRemovedGoalChanges(nextGoal, "added"),
+      });
+      continue;
+    }
+
+    const fieldChanges = buildGoalFieldChanges(previousGoal, nextGoal);
+    if (fieldChanges.length > 0) {
+      goalChanges.push({
+        goalId: nextGoal.id,
+        goalTitle: nextGoal.title || previousGoal.title || "Untitled goal",
+        changeType: "updated",
+        fieldChanges,
+      });
+    }
+  }
+
+  for (const previousGoal of previousGoals) {
+    if (nextGoalMap.has(previousGoal.id)) continue;
+
+    goalChanges.push({
+      goalId: previousGoal.id,
+      goalTitle: previousGoal.title || "Untitled goal",
+      changeType: "removed",
+      fieldChanges: buildAddedOrRemovedGoalChanges(previousGoal, "removed"),
+    });
+  }
+
+  return goalChanges.length > 0 ? { goalChanges } : null;
+}
 
 async function getAuthenticatedAppUser(request: Request) {
   const session = await auth.api.getSession({
@@ -150,7 +255,11 @@ export async function POST(request: Request) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const createAuditLog = async (action: string, entityLabel: string) => {
+      const createAuditLog = async (
+        action: string,
+        entityLabel: string,
+        details?: Prisma.InputJsonValue | null,
+      ) => {
         await tx.auditLogEntry.create({
           data: {
             id: `audit-${crypto.randomUUID()}`,
@@ -158,6 +267,7 @@ export async function POST(request: Request) {
             actorName: appUser.name,
             action,
             entityLabel,
+            details: details ?? Prisma.JsonNull,
           },
         });
       };
@@ -283,6 +393,13 @@ export async function POST(request: Request) {
           const existing = await tx.goalSheet.findUnique({
             where: { employeeId: body.employeeId },
           });
+          const previousGoals =
+            existing?.status === "unlocked"
+              ? await tx.goal.findMany({
+                  where: { goalSheetId: existing.id },
+                  orderBy: { createdAt: "asc" },
+                })
+              : [];
 
           if (existing && !["draft", "returned", "unlocked"].includes(existing.status)) {
             throw new Error("Only editable goal sheets can be saved.");
@@ -306,6 +423,32 @@ export async function POST(request: Request) {
           });
 
           await persistGoals(goalSheet.id, body.goals);
+          if (existing?.status === "unlocked") {
+            const auditDetails = buildUnlockedGoalAuditDetails(
+              previousGoals.map(
+                (goal): Goal => ({
+                  id: goal.id,
+                  goalSheetId: goal.goalSheetId,
+                  thrustArea: goal.thrustArea as Goal["thrustArea"],
+                  title: goal.title,
+                  description: goal.description,
+                  uomType: goal.uomType ?? "",
+                  uomDirection: goal.uomDirection ?? "",
+                  targetValue: goal.targetValue,
+                  weightage: goal.weightage,
+                }),
+              ),
+              body.goals,
+            );
+
+            if (auditDetails) {
+              await createAuditLog(
+                "Updated unlocked goal sheet draft",
+                appUser.name,
+                auditDetails as Prisma.InputJsonValue,
+              );
+            }
+          }
           break;
         }
 
@@ -317,6 +460,13 @@ export async function POST(request: Request) {
           const existing = await tx.goalSheet.findUnique({
             where: { employeeId: body.employeeId },
           });
+          const previousGoals =
+            existing?.status === "unlocked"
+              ? await tx.goal.findMany({
+                  where: { goalSheetId: existing.id },
+                  orderBy: { createdAt: "asc" },
+                })
+              : [];
           if (existing && !["draft", "returned", "unlocked"].includes(existing.status)) {
             throw new Error("Only editable goal sheets can be submitted.");
           }
@@ -333,6 +483,32 @@ export async function POST(request: Request) {
           });
 
           await persistGoals(goalSheet.id, body.goals);
+          if (existing?.status === "unlocked") {
+            const auditDetails = buildUnlockedGoalAuditDetails(
+              previousGoals.map(
+                (goal): Goal => ({
+                  id: goal.id,
+                  goalSheetId: goal.goalSheetId,
+                  thrustArea: goal.thrustArea as Goal["thrustArea"],
+                  title: goal.title,
+                  description: goal.description,
+                  uomType: goal.uomType ?? "",
+                  uomDirection: goal.uomDirection ?? "",
+                  targetValue: goal.targetValue,
+                  weightage: goal.weightage,
+                }),
+              ),
+              body.goals,
+            );
+
+            if (auditDetails) {
+              await createAuditLog(
+                "Resubmitted unlocked goal sheet",
+                appUser.name,
+                auditDetails as Prisma.InputJsonValue,
+              );
+            }
+          }
           break;
         }
 

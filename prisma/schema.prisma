@@ -203,6 +203,7 @@ model AuditLogEntry {
   actorName    String
   action       String
   entityLabel  String
+  details      Json?
   createdAt    DateTime  @default(now())
 
   actor        AppUser?  @relation(fields: [actorAppUserId], references: [id], onDelete: SetNull)

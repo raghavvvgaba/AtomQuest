@@ -90,6 +90,25 @@ export type AuditLogEntry = {
   actorName: string;
   action: string;
   entityLabel: string;
+  details?: {
+    goalChanges: Array<{
+      goalId: string;
+      goalTitle: string;
+      changeType: "updated" | "added" | "removed";
+      fieldChanges?: Array<{
+        field:
+          | "thrustArea"
+          | "title"
+          | "description"
+          | "uomType"
+          | "uomDirection"
+          | "targetValue"
+          | "weightage";
+        from: string | number | null;
+        to: string | number | null;
+      }>;
+    }>;
+  } | null;
   createdAt: string;
 };
 

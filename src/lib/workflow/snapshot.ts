@@ -120,6 +120,10 @@ export async function getWorkflowSnapshot(
         actorName: log.actorName,
         action: log.action,
         entityLabel: log.entityLabel,
+        details:
+          log.details && typeof log.details === "object" && !Array.isArray(log.details)
+            ? (log.details as AuditLogEntry["details"])
+            : null,
         createdAt: log.createdAt.toISOString(),
       }),
     ),
