@@ -39,7 +39,10 @@ export function GoalSheetEditor() {
 
   const employeeId = currentUser.id;
   const validation = validateGoalSheet(goalSheet, goals);
-  const isEditable = goalSheet.status === "draft" || goalSheet.status === "returned";
+  const isEditable =
+    goalSheet.status === "draft" ||
+    goalSheet.status === "returned" ||
+    goalSheet.status === "unlocked";
   const totalWeightage = getGoalSheetTotalWeightage(employeeId);
 
   function handleSaveDraft() {

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/app/page-header";
 import { RequireRole } from "@/components/app/require-role";
 import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,12 +22,14 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
     state,
     getGoalSheetByEmployee,
     getGoalsByGoalSheet,
+    getGoalSheetTotalWeightage,
     updateManagerReview,
     returnGoalSheet,
     approveGoalSheet,
   } = useAppStore();
   const [returnComment, setReturnComment] = useState("");
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [approvalErrors, setApprovalErrors] = useState<string[]>([]);
 
   const employee = state.users.find((user) => user.id === employeeId && user.role === "employee");
   const goalSheet = getGoalSheetByEmployee(employeeId);
@@ -37,9 +40,11 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
 
   if (!currentUser) return null;
 
+  const isDirectReport = employee?.managerId === currentUser.id;
   const isReviewable = goalSheet?.status === "submitted";
+  const totalWeightage = getGoalSheetTotalWeightage(employeeId);
 
-  if (!employee || !goalSheet) {
+  if (!employee || !goalSheet || !isDirectReport) {
     return (
       <RequireRole role="manager">
         <Card className="mt-12">
@@ -51,6 +56,8 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
       </RequireRole>
     );
   }
+
+  const hasReturnComment = returnComment.trim().length > 0;
 
   return (
     <RequireRole role="manager">
@@ -165,19 +172,47 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
                 <div className="rounded-2xl bg-muted/50 px-4 py-3 text-sm">
                   Current state: <strong className="capitalize">{goalSheet.status}</strong>
                 </div>
+                <div className="rounded-2xl bg-muted/50 px-4 py-3 text-sm">
+                  Total weightage: <strong>{totalWeightage}%</strong>
+                </div>
+                {approvalErrors.length > 0 ? (
+                  <Alert variant="destructive">
+                    <AlertTitle>Approval blocked</AlertTitle>
+                    <AlertDescription className="space-y-2">
+                      {approvalErrors.map((message) => (
+                        <p key={message}>{message}</p>
+                      ))}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
                 <div className="space-y-2">
                   <Label>Return comment</Label>
                   <Textarea
                     disabled={!isReviewable}
                     value={returnComment}
-                    onChange={(event) => setReturnComment(event.target.value)}
+                    onChange={(event) => {
+                      setReturnComment(event.target.value);
+                      setApprovalErrors([]);
+                    }}
                   />
+                  {hasReturnComment ? (
+                    <p className="text-sm text-muted-foreground">
+                      Clear the return comment to approve this sheet.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-3">
                   <Button
-                    disabled={!isReviewable}
+                    disabled={!isReviewable || hasReturnComment}
                     onClick={() => {
-                      approveGoalSheet(employee.id);
+                      const result = approveGoalSheet(employee.id);
+                      if (!result.isValid) {
+                        setApprovalErrors(result.summary);
+                        setActionNotice(null);
+                        return;
+                      }
+
+                      setApprovalErrors([]);
                       setActionNotice("Sheet approved and locked for the employee.");
                     }}
                     type="button"
@@ -188,6 +223,7 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
                   <Button
                     disabled={!isReviewable}
                     onClick={() => {
+                      setApprovalErrors([]);
                       returnGoalSheet(employee.id, returnComment);
                       setActionNotice("Sheet returned to the employee for rework.");
                     }}

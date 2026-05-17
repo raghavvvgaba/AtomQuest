@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, RefreshCcw, SendHorizontal } from "lucide-react";
+import { ArrowRight, CheckCircle2, ClipboardCheck, RefreshCcw, SendHorizontal } from "lucide-react";
 
 import { PageHeader } from "@/components/app/page-header";
 import { RequireRole } from "@/components/app/require-role";
@@ -12,7 +12,13 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 
 export function ManagerDashboard() {
-  const { currentUser, getManagerTeam, getGoalSheetByEmployee, getGoalsByGoalSheet } =
+  const {
+    currentUser,
+    getManagerTeam,
+    getGoalSheetByEmployee,
+    getGoalsByGoalSheet,
+    getManagerCheckInQueue,
+  } =
     useAppStore();
 
   if (!currentUser) return null;
@@ -33,6 +39,8 @@ export function ManagerDashboard() {
   const pending = items.filter((item) => item.goalSheet.status === "submitted");
   const returned = items.filter((item) => item.goalSheet.status === "returned");
   const approved = items.filter((item) => item.goalSheet.status === "approved");
+  const checkInQueue = getManagerCheckInQueue(managerId);
+  const submittedCheckIns = checkInQueue.filter((item) => item.checkIn.status === "submitted");
 
   return (
     <RequireRole role="manager">
@@ -42,7 +50,7 @@ export function ManagerDashboard() {
           title="Manager dashboard"
         />
 
-        <section className="grid gap-5 md:grid-cols-3">
+        <section className="grid gap-5 md:grid-cols-4">
           {[
             {
               label: "Pending approval",
@@ -61,6 +69,12 @@ export function ManagerDashboard() {
               value: approved.length,
               icon: CheckCircle2,
               tone: "approved",
+            },
+            {
+              label: "Check-ins",
+              value: submittedCheckIns.length,
+              icon: ClipboardCheck,
+              tone: "submitted",
             },
           ].map((item) => {
             const Icon = item.icon;

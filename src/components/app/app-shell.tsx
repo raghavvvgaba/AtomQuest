@@ -1,6 +1,15 @@
 "use client";
 
-import { Compass, FolderKanban, Home, PanelsTopLeft } from "lucide-react";
+import {
+  ClipboardCheck,
+  Compass,
+  FolderKanban,
+  Home,
+  LockOpen,
+  PanelsTopLeft,
+  ScrollText,
+  TableProperties,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -32,6 +41,12 @@ const employeeNav: NavItem[] = [
     icon: FolderKanban,
     match: (pathname) => pathname.startsWith("/employee/goals"),
   },
+  {
+    href: "/employee/check-ins",
+    label: "Check-ins",
+    icon: ClipboardCheck,
+    match: (pathname) => pathname.startsWith("/employee/check-ins"),
+  },
 ];
 
 const managerNav: NavItem[] = [
@@ -41,13 +56,51 @@ const managerNav: NavItem[] = [
     icon: PanelsTopLeft,
     match: (pathname) => pathname === "/manager",
   },
+  {
+    href: "/manager/check-ins",
+    label: "Check-ins",
+    icon: ClipboardCheck,
+    match: (pathname) => pathname.startsWith("/manager/check-ins"),
+  },
+];
+
+const adminNav: NavItem[] = [
+  {
+    href: "/admin",
+    label: "Dashboard",
+    icon: PanelsTopLeft,
+    match: (pathname) => pathname === "/admin",
+  },
+  {
+    href: "/admin/unlock",
+    label: "Unlock",
+    icon: LockOpen,
+    match: (pathname) => pathname.startsWith("/admin/unlock"),
+  },
+  {
+    href: "/admin/reports",
+    label: "Reports",
+    icon: TableProperties,
+    match: (pathname) => pathname.startsWith("/admin/reports"),
+  },
+  {
+    href: "/admin/audit-log",
+    label: "Audit Log",
+    icon: ScrollText,
+    match: (pathname) => pathname.startsWith("/admin/audit-log"),
+  },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { currentUser } = useAppStore();
 
-  const nav = currentUser?.role === "manager" ? managerNav : employeeNav;
+  const nav =
+    currentUser?.role === "admin"
+      ? adminNav
+      : currentUser?.role === "manager"
+        ? managerNav
+        : employeeNav;
 
   return (
     <div className="min-h-screen bg-background px-4 py-4 md:px-8 md:py-6">

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Lock } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -29,8 +29,8 @@ const roleCards: Array<{
   },
   {
     role: "admin",
-    description: "Admin dashboard is not available yet.",
-    disabled: true,
+    route: "/admin",
+    description: "View oversight, reports, and unlocks.",
   },
 ];
 
@@ -74,17 +74,8 @@ export function RoleSwitcher() {
                   disabled={card.disabled}
                   onClick={() => handleContinue(card.role, card.route)}
                 >
-                  {card.disabled ? (
-                    <>
-                      Locked for now
-                      <Lock className="size-4" />
-                    </>
-                  ) : (
-                    <>
-                      Continue as {getRoleLabel(card.role)}
-                      <ArrowRight className="size-4" />
-                    </>
-                  )}
+                  Continue as {getRoleLabel(card.role)}
+                  <ArrowRight className="size-4" />
                 </Button>
               </CardContent>
             </Card>

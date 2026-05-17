@@ -1,4 +1,11 @@
-import type { Goal, GoalSheet, User } from "@/lib/types";
+import type {
+  AuditLogEntry,
+  CheckIn,
+  CheckInGoalUpdate,
+  Goal,
+  GoalSheet,
+  User,
+} from "@/lib/types";
 
 const now = "2026-05-17T08:30:00.000Z";
 
@@ -14,7 +21,7 @@ export const seededGoalSheets: GoalSheet[] = [
   {
     id: "sheet-01",
     employeeId: "employee-01",
-    status: "draft",
+    status: "approved",
     managerComment: null,
     createdAt: now,
     updatedAt: now,
@@ -48,7 +55,7 @@ export const seededGoals: Goal[] = [
     uomType: "numeric",
     uomDirection: "min",
     targetValue: "15",
-    weightage: 40,
+    weightage: 50,
   },
   {
     id: "goal-02",
@@ -60,7 +67,7 @@ export const seededGoals: Goal[] = [
     uomType: "timeline",
     uomDirection: "timeline",
     targetValue: "2026-08-31",
-    weightage: 20,
+    weightage: 50,
   },
   {
     id: "goal-03",
@@ -120,5 +127,74 @@ export const seededGoals: Goal[] = [
     uomDirection: "min",
     targetValue: "88",
     weightage: 50,
+  },
+];
+
+export const seededCheckIns: CheckIn[] = [
+  {
+    id: "check-in-01",
+    goalSheetId: "sheet-01",
+    quarter: "Q1",
+    status: "draft",
+    managerComment: null,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "check-in-02",
+    goalSheetId: "sheet-03",
+    quarter: "Q1",
+    status: "submitted",
+    managerComment: null,
+    createdAt: now,
+    updatedAt: now,
+  },
+];
+
+export const seededCheckInGoalUpdates: CheckInGoalUpdate[] = [
+  {
+    id: "check-in-update-01",
+    checkInId: "check-in-01",
+    goalId: "goal-01",
+    actualAchievement: "8",
+    progressStatus: "on_track",
+  },
+  {
+    id: "check-in-update-02",
+    checkInId: "check-in-01",
+    goalId: "goal-02",
+    actualAchievement: "",
+    progressStatus: "",
+  },
+  {
+    id: "check-in-update-03",
+    checkInId: "check-in-02",
+    goalId: "goal-06",
+    actualAchievement: "2026-09-10",
+    progressStatus: "completed",
+  },
+  {
+    id: "check-in-update-04",
+    checkInId: "check-in-02",
+    goalId: "goal-07",
+    actualAchievement: "82",
+    progressStatus: "on_track",
+  },
+];
+
+export const seededAuditLogs: AuditLogEntry[] = [
+  {
+    id: "audit-01",
+    actorName: "Arjun Mehta",
+    action: "Approved goal sheet",
+    entityLabel: "Riya Verma",
+    createdAt: now,
+  },
+  {
+    id: "audit-02",
+    actorName: "Tara Singh",
+    action: "Submitted Q1 check-in",
+    entityLabel: "Leadership enablement goals",
+    createdAt: now,
   },
 ];

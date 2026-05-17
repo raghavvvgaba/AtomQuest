@@ -4,6 +4,7 @@ export const GOAL_SHEET_STATUS_VALUES = [
   "submitted",
   "returned",
   "approved",
+  "unlocked",
 ] as const;
 export const UOM_TYPE_VALUES = [
   "numeric",
@@ -20,12 +21,22 @@ export const THRUST_AREA_VALUES = [
   "Innovation",
   "Compliance / Risk",
 ] as const;
+export const QUARTER_VALUES = ["Q1", "Q2", "Q3", "Q4"] as const;
+export const CHECK_IN_STATUS_VALUES = ["draft", "submitted", "reviewed"] as const;
+export const PROGRESS_STATUS_VALUES = [
+  "not_started",
+  "on_track",
+  "completed",
+] as const;
 
 export type Role = (typeof ROLE_VALUES)[number];
 export type GoalSheetStatus = (typeof GOAL_SHEET_STATUS_VALUES)[number];
 export type UomType = (typeof UOM_TYPE_VALUES)[number];
 export type UomDirection = (typeof UOM_DIRECTION_VALUES)[number];
 export type ThrustArea = (typeof THRUST_AREA_VALUES)[number];
+export type Quarter = (typeof QUARTER_VALUES)[number];
+export type CheckInStatus = (typeof CHECK_IN_STATUS_VALUES)[number];
+export type ProgressStatus = (typeof PROGRESS_STATUS_VALUES)[number];
 
 export type User = {
   id: string;
@@ -55,6 +66,32 @@ export type Goal = {
   weightage: number | null;
 };
 
+export type CheckIn = {
+  id: string;
+  goalSheetId: string;
+  quarter: Quarter;
+  status: CheckInStatus;
+  managerComment: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CheckInGoalUpdate = {
+  id: string;
+  checkInId: string;
+  goalId: string;
+  actualAchievement: string;
+  progressStatus: ProgressStatus | "";
+};
+
+export type AuditLogEntry = {
+  id: string;
+  actorName: string;
+  action: string;
+  entityLabel: string;
+  createdAt: string;
+};
+
 export type GoalFieldError = Partial<
   Record<
     | "thrustArea"
@@ -73,3 +110,8 @@ export type GoalSheetValidationResult = {
   summary: string[];
   goalErrors: Record<string, GoalFieldError>;
 };
+
+export type CheckInGoalUpdateDraft = Pick<
+  CheckInGoalUpdate,
+  "goalId" | "actualAchievement" | "progressStatus"
+>;

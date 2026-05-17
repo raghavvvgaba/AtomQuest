@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ClipboardCheck } from "lucide-react";
 
 import { PageHeader } from "@/components/app/page-header";
 import { RequireRole } from "@/components/app/require-role";
@@ -30,13 +30,22 @@ export function EmployeeDashboard() {
           title={`Welcome back, ${currentUser.name.split(" ")[0]}`}
           status={goalSheet?.status}
           actions={
-            <Link
-              className={cn(buttonVariants({ variant: "default", size: "lg" }))}
-              href="/employee/goals"
-            >
-              Open goal sheet
-              <ArrowRight className="size-4" />
-            </Link>
+            <>
+              <Link
+                className={cn(buttonVariants({ variant: "default", size: "lg" }))}
+                href="/employee/goals"
+              >
+                Open goal sheet
+                <ArrowRight className="size-4" />
+              </Link>
+              <Link
+                className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+                href="/employee/check-ins"
+              >
+                Check-ins
+                <ClipboardCheck className="size-4" />
+              </Link>
+            </>
           }
         />
 

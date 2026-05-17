@@ -1,10 +1,12 @@
 import { z } from "zod";
 
 import type {
+  CheckInStatus,
   Goal,
   GoalFieldError,
   GoalSheet,
   GoalSheetValidationResult,
+  ProgressStatus,
   UomDirection,
   UomType,
 } from "@/lib/types";
@@ -141,6 +143,8 @@ export function getGoalSheetStatusTone(status: GoalSheet["status"]) {
       return "danger";
     case "approved":
       return "success";
+    case "unlocked":
+      return "warning";
     default:
       return "neutral";
   }
@@ -152,6 +156,23 @@ export function getRoleLabel(role: "employee" | "manager" | "admin") {
 
 export function getStatusLabel(status: GoalSheet["status"]) {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function getCheckInStatusLabel(status: CheckInStatus) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function getProgressStatusLabel(status: ProgressStatus | "") {
+  switch (status) {
+    case "not_started":
+      return "Not Started";
+    case "on_track":
+      return "On Track";
+    case "completed":
+      return "Completed";
+    default:
+      return "Select status";
+  }
 }
 
 export function getDirectionLabel(direction: UomDirection | "") {
@@ -167,4 +188,36 @@ export function getDirectionLabel(direction: UomDirection | "") {
     default:
       return "Select direction";
   }
+}
+
+export function getComputedProgress(goal: Goal, actualAchievement: string) {
+  const actual = actualAchievement.trim();
+  if (!actual || !goal.targetValue.trim()) return "Not available";
+
+  if (goal.uomType === "timeline") {
+    const targetDate = Date.parse(goal.targetValue);
+    const actualDate = Date.parse(actual);
+    if (Number.isNaN(targetDate) || Number.isNaN(actualDate)) return "Not available";
+    return actualDate <= targetDate ? "100%" : "0%";
+  }
+
+  if (goal.uomType === "zero") {
+    const actualNumber = Number(actual);
+    if (Number.isNaN(actualNumber)) return "Not available";
+    return actualNumber === 0 ? "100%" : "0%";
+  }
+
+  const targetNumber = Number(goal.targetValue);
+  const actualNumber = Number(actual);
+  if (!targetNumber || Number.isNaN(targetNumber) || Number.isNaN(actualNumber)) {
+    return "Not available";
+  }
+
+  const ratio =
+    goal.uomDirection === "max"
+      ? targetNumber / actualNumber
+      : actualNumber / targetNumber;
+
+  if (!Number.isFinite(ratio)) return "Not available";
+  return `${Math.max(0, Math.round(ratio * 100))}%`;
 }

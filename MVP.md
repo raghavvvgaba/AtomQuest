@@ -340,6 +340,10 @@ These are intentionally excluded from the current schema and behavior to avoid o
 - stored computed progress score
 - strict quarter-window enforcement
 
+## MVP Assumption
+
+- The PRD requires selecting a `thrustArea`, but it does not define the allowed options. For MVP, the controlled options are `Revenue Growth`, `Customer Experience`, `Operational Excellence`, `People & Capability`, `Innovation`, and `Compliance / Risk`.
+
 ## Current Direction
 
 The current approach is:
