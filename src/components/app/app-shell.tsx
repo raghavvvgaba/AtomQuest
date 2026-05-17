@@ -14,10 +14,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { SignOutButton } from "@/components/app/sign-out-button";
+import { ProfileMenu } from "@/components/app/profile-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Badge } from "@/components/ui/badge";
-import { getRoleLabel } from "@/lib/goal-sheet";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 
@@ -117,22 +115,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {currentUser ? (
-              <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
-                <div className="flex size-9 items-center justify-center rounded-md bg-muted text-sm font-semibold">
-                  {currentUser.name
-                    .split(" ")
-                    .map((part) => part[0])
-                    .join("")}
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold">{currentUser.name}</p>
-                  <Badge variant="outline">{getRoleLabel(currentUser.role)}</Badge>
-                </div>
-              </div>
-            ) : null}
             <ThemeToggle />
-            <SignOutButton />
+            {currentUser ? <ProfileMenu user={currentUser} /> : null}
           </div>
         </header>
 

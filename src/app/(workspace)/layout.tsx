@@ -8,7 +8,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   const appUser = await requireAppUser();
 
   return (
-    <AppStoreProvider initialUserId={appUser.id}>
+    <AppStoreProvider initialUser={appUser}>
       <AppShell>{children}</AppShell>
     </AppStoreProvider>
   );

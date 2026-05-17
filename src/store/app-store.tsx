@@ -181,10 +181,38 @@ const initialState: AppState = {
 
 const AppStoreContext = createContext<AppStoreContextValue | null>(null);
 
-function createInitialState(initialUserId?: string | null): AppState {
+function createInitialState(initialUser?: User | null): AppState {
+  const users = initialUser
+    ? initialState.users.some((user) => user.id === initialUser.id)
+      ? initialState.users.map((user) =>
+          user.id === initialUser.id ? { ...user, ...initialUser } : user,
+        )
+      : [...initialState.users, initialUser]
+    : initialState.users;
+
+  const needsEmployeeGoalSheet =
+    initialUser?.role === "employee" &&
+    !initialState.goalSheets.some((sheet) => sheet.employeeId === initialUser.id);
+
+  const goalSheets = needsEmployeeGoalSheet
+    ? [
+        ...initialState.goalSheets,
+        {
+          id: `sheet-${initialUser.id}`,
+          employeeId: initialUser.id,
+          status: "draft" as const,
+          managerComment: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]
+    : initialState.goalSheets;
+
   return {
     ...initialState,
-    currentUserId: initialUserId ?? null,
+    currentUserId: initialUser?.id ?? null,
+    users,
+    goalSheets,
   };
 }
 
@@ -592,14 +620,14 @@ function appReducer(state: AppState, action: Action): AppState {
 
 export function AppStoreProvider({
   children,
-  initialUserId,
+  initialUser,
 }: {
   children: ReactNode;
-  initialUserId?: string | null;
+  initialUser?: User | null;
 }) {
   const [state, dispatch] = useReducer(
     appReducer,
-    initialUserId,
+    initialUser,
     createInitialState,
   );
 

@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AtomQuest Goal Setting Portal
 
-## Getting Started
+Hackathon MVP for employee goal creation, manager approval, quarterly check-ins, admin unlocks, reporting, and audit visibility.
 
-First, run the development server:
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+pnpm prisma:push
+pnpm db:seed
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo Accounts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The project already includes one seeded demo account for each role:
 
-## Learn More
+- Employee: `employee@atomquest.test` / `Employee@123`
+- Manager: `manager@atomquest.test` / `Manager@123`
+- Admin: `admin@atomquest.test` / `Admin@123`
 
-To learn more about Next.js, take a look at the following resources:
+Additional employee accounts created for testing:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Employee 1: `employee1@gmail.com` / `password`
+- Employee 2: `employee2@gmail.com` / `password`
+- Employee 3: `employee3@gmail.com` / `password`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+You can also create a new Employee, Manager, or Admin account from the **Create Account** section on the login page.
 
-## Deploy on Vercel
+## Evaluator Notes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Use the Employee account to create, edit, save, and submit goal sheets.
+- Use the Manager account to review submitted goal sheets, edit target/weightage, approve, return for rework, and review check-ins.
+- Use the Admin account to view dashboard counts, unlock approved goal sheets, view reports, and inspect audit logs.
+- Public signup is enabled for hackathon demo convenience and lets the tester choose a role.

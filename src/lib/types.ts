@@ -41,6 +41,7 @@ export type ProgressStatus = (typeof PROGRESS_STATUS_VALUES)[number];
 export type User = {
   id: string;
   name: string;
+  email?: string;
   role: Role;
   managerId: string | null;
 };
