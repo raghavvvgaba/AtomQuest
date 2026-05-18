@@ -138,9 +138,10 @@ export function ManagerCheckInReview({ employeeId }: { employeeId: string }) {
                 Current status: <strong className="capitalize">{checkIn?.status ?? "none"}</strong>
               </div>
               <div className="space-y-2">
-                <Label>Manager comment</Label>
+                <Label>Check-in discussion comment</Label>
                 <Textarea
                   disabled={!canReview}
+                  placeholder="Capture the discussion, key blockers, and agreed next steps."
                   value={comment}
                   onChange={(event) => setComment(event.target.value)}
                 />

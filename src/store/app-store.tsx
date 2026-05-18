@@ -16,6 +16,7 @@ import {
   syncGoalTypeDefaults,
   validateGoalSheet,
 } from "@/lib/goal-sheet";
+import { getActiveQuarter } from "@/lib/check-in-schedule";
 import type {
   AuditLogEntry,
   CheckIn,
@@ -1019,6 +1020,11 @@ export function AppStoreProvider({
 
   const saveCheckInDraft = useCallback(
     async (employeeId: string, quarter: Quarter, updates: CheckInGoalUpdateDraft[]) => {
+      const activeQuarter = getActiveQuarter();
+      if (activeQuarter !== quarter) {
+        return false;
+      }
+
       dispatch({ type: "save-check-in-draft", employeeId, quarter, updates });
 
       try {
@@ -1038,6 +1044,14 @@ export function AppStoreProvider({
 
   const submitCheckIn = useCallback(
     async (employeeId: string, quarter: Quarter) => {
+      const activeQuarter = getActiveQuarter();
+      if (activeQuarter !== quarter) {
+        return {
+          isValid: false,
+          summary: ["Check-ins are currently closed for this quarter."],
+        };
+      }
+
       const goalSheet = getGoalSheetByEmployeeFromState(state, employeeId);
       if (!goalSheet || goalSheet.status !== "approved") {
         return {

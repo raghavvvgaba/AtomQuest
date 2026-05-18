@@ -89,6 +89,12 @@ const adminNav: NavItem[] = [
     match: (pathname) => pathname.startsWith("/admin/shared-goals"),
   },
   {
+    href: "/admin/completion",
+    label: "Completion",
+    icon: ClipboardCheck,
+    match: (pathname) => pathname.startsWith("/admin/completion"),
+  },
+  {
     href: "/admin/reports",
     label: "Reports",
     icon: TableProperties,

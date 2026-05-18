@@ -14,6 +14,43 @@ export function AdminReports() {
   const { getReportRows } = useAppStore();
   const rows = getReportRows();
 
+  function handleExportCsv() {
+    const csvRows = [
+      [
+        "Employee",
+        "Manager",
+        "Quarter",
+        "Goal",
+        "Thrust area",
+        "Target",
+        "Actual achievement",
+        "Computed progress",
+        "Progress status",
+        "Check-in status",
+      ],
+      ...rows.map((row) => [
+        row.employeeName,
+        row.managerName,
+        row.quarter,
+        row.goalTitle,
+        row.thrustArea,
+        row.targetValue,
+        row.actualAchievement || "Missing",
+        row.computedProgress,
+        getProgressStatusLabel(row.progressStatus),
+        row.checkInStatus,
+      ]),
+    ];
+    const csv = csvRows.map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "atomquest-planned-vs-actual-report.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <RequireRole role="admin">
       <div className="space-y-6">
@@ -21,9 +58,9 @@ export function AdminReports() {
           eyebrow="Admin reports"
           title="Planned vs actual report"
           actions={
-            <Button disabled variant="secondary">
+            <Button disabled={rows.length === 0} variant="secondary" onClick={handleExportCsv}>
               <Download className="mr-2 size-4" />
-              Export
+              Export CSV
             </Button>
           }
         />
@@ -70,4 +107,9 @@ export function AdminReports() {
       </div>
     </RequireRole>
   );
+}
+
+function escapeCsvCell(value: string | number | null | undefined) {
+  const cell = value === null || value === undefined ? "" : String(value);
+  return `"${cell.replaceAll('"', '""')}"`;
 }

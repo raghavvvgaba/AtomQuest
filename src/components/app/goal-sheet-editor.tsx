@@ -11,6 +11,10 @@ import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  GOAL_SETTING_WINDOW_LABEL,
+  isGoalSettingWindowMonth,
+} from "@/lib/goal-setting-schedule";
 import { validateGoalSheet } from "@/lib/goal-sheet";
 import { useAppStore } from "@/store/app-store";
 
@@ -48,6 +52,7 @@ export function GoalSheetEditor() {
     goalSheet.status === "returned" ||
     goalSheet.status === "unlocked";
   const totalWeightage = getGoalSheetTotalWeightage(employeeId);
+  const isGoalSettingMonth = isGoalSettingWindowMonth();
 
   async function handleSaveDraft() {
     setIsSavingDraft(true);
@@ -137,6 +142,21 @@ export function GoalSheetEditor() {
 
         <section className="grid gap-5 xl:grid-cols-[1fr_320px]">
           <div className="space-y-5">
+            <Alert
+              className={
+                isGoalSettingMonth
+                  ? "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                  : "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+              }
+            >
+              <AlertTitle>Goal-setting window: {GOAL_SETTING_WINDOW_LABEL}</AlertTitle>
+              <AlertDescription>
+                {isGoalSettingMonth
+                  ? "The PRD goal-setting cycle opens in May. Date locking is not blocking this screen so the workflow can be tested."
+                  : "This is outside the typical PRD goal-setting window. Editing remains enabled here so the workflow can be tested."}
+              </AlertDescription>
+            </Alert>
+
             {goalSheet.status === "submitted" ? (
               <Alert className="border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300">
                 <AlertTitle>Under review by manager</AlertTitle>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 
 import { validateGoalSheet } from "@/lib/goal-sheet";
+import { getActiveQuarter } from "@/lib/check-in-schedule";
 import { auth } from "@/lib/auth/provider";
 import { prisma } from "@/lib/db/prisma";
 import type {
@@ -821,6 +822,9 @@ export async function POST(request: Request) {
           if (appUser.role !== "employee" || appUser.id !== body.employeeId) {
             throw new Error("Forbidden");
           }
+          if (getActiveQuarter() !== body.quarter) {
+            throw new Error("Check-ins are currently closed for this quarter.");
+          }
 
           await upsertCheckInDraft(body.employeeId, body.quarter, body.updates);
           break;
@@ -829,6 +833,9 @@ export async function POST(request: Request) {
         case "submitCheckIn": {
           if (appUser.role !== "employee" || appUser.id !== body.employeeId) {
             throw new Error("Forbidden");
+          }
+          if (getActiveQuarter() !== body.quarter) {
+            throw new Error("Check-ins are currently closed for this quarter.");
           }
 
           const { checkIn, goals } = await upsertCheckInDraft(

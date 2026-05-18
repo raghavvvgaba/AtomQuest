@@ -21,8 +21,9 @@ import {
 import {
   getProgressStatusLabel,
 } from "@/lib/goal-sheet";
-import { QUARTER_VALUES, PROGRESS_STATUS_VALUES } from "@/lib/types";
-import type { CheckInGoalUpdateDraft, ProgressStatus, Quarter } from "@/lib/types";
+import { getActiveQuarter, getNextQuarterWindow, getQuarterWindow } from "@/lib/check-in-schedule";
+import { PROGRESS_STATUS_VALUES } from "@/lib/types";
+import type { CheckInGoalUpdateDraft, ProgressStatus } from "@/lib/types";
 import { useAppStore } from "@/store/app-store";
 
 export function EmployeeCheckIns() {
@@ -38,9 +39,11 @@ export function EmployeeCheckIns() {
     saveCheckInDraft,
     submitCheckIn,
   } = useAppStore();
-  const [quarter, setQuarter] = useState<Quarter>("Q1");
   const [notice, setNotice] = useState<string | null>(null);
   const [submitSummary, setSubmitSummary] = useState<string[]>([]);
+  const activeQuarter = getActiveQuarter();
+  const nextQuarterWindow = getNextQuarterWindow();
+  const quarter = activeQuarter ?? nextQuarterWindow.quarter;
   const employeeId = currentUser?.id ?? "";
   const goalSheet = currentUser ? getGoalSheetByEmployee(currentUser.id) : undefined;
   const goals = goalSheet ? getGoalsByGoalSheet(goalSheet.id) : [];
@@ -48,6 +51,8 @@ export function EmployeeCheckIns() {
   const updates = checkIn ? getCheckInGoalUpdates(checkIn.id) : [];
   const isEditable = !checkIn || checkIn.status === "draft";
   const canUseCheckIns = goalSheet?.status === "approved";
+  const quarterWindow = getQuarterWindow(quarter);
+  const canEditActiveCheckIn = canUseCheckIns && Boolean(activeQuarter);
 
   const draftUpdates: CheckInGoalUpdateDraft[] = goals.map((goal) => {
     const update = updates.find((item) => item.goalId === goal.id);
@@ -61,29 +66,43 @@ export function EmployeeCheckIns() {
   if (!currentUser) return null;
 
   function updateDraft(goalId: string, patch: Partial<CheckInGoalUpdateDraft>) {
+    if (!activeQuarter) return;
+
     const nextUpdates = draftUpdates.map((update) =>
       update.goalId === goalId ? { ...update, ...patch } : update,
     );
-    void saveCheckInDraft(employeeId, quarter, nextUpdates);
+    void saveCheckInDraft(employeeId, activeQuarter, nextUpdates);
     setNotice(null);
     setSubmitSummary([]);
   }
 
   async function handleSave() {
-    const saved = await saveCheckInDraft(employeeId, quarter, draftUpdates);
+    if (!activeQuarter) {
+      setNotice(null);
+      setSubmitSummary([`Check-ins are currently closed. Next window: ${nextQuarterWindow.quarter} in ${nextQuarterWindow.label}.`]);
+      return;
+    }
+
+    const saved = await saveCheckInDraft(employeeId, activeQuarter, draftUpdates);
     setNotice(saved ? "Draft saved." : "Draft could not be saved.");
     setSubmitSummary(saved ? [] : ["We could not save this check-in draft."]);
   }
 
   async function handleSubmit() {
-    const saved = await saveCheckInDraft(employeeId, quarter, draftUpdates);
+    if (!activeQuarter) {
+      setNotice(null);
+      setSubmitSummary([`Check-ins are currently closed. Next window: ${nextQuarterWindow.quarter} in ${nextQuarterWindow.label}.`]);
+      return;
+    }
+
+    const saved = await saveCheckInDraft(employeeId, activeQuarter, draftUpdates);
     if (!saved) {
       setNotice(null);
       setSubmitSummary(["We could not save the latest check-in changes."]);
       return;
     }
 
-    const result = await submitCheckIn(employeeId, quarter);
+    const result = await submitCheckIn(employeeId, activeQuarter);
     setSubmitSummary(result.summary);
     setNotice(result.isValid ? "Check-in submitted." : null);
   }
@@ -97,27 +116,39 @@ export function EmployeeCheckIns() {
           actions={
             <>
               {checkIn ? <Badge variant="secondary">{checkIn.status}</Badge> : null}
-              <Select onValueChange={(value) => setQuarter(value as Quarter)} value={quarter}>
-                <SelectTrigger className="w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {QUARTER_VALUES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Badge variant="outline">
+                {activeQuarter ? `Active: ${activeQuarter}` : "No active window"}
+              </Badge>
             </>
           }
         />
 
         {!canUseCheckIns ? (
-          <Alert>
+          <Alert className="border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300">
             <AlertTitle>Check-in unavailable</AlertTitle>
             <AlertDescription>
               Check-ins are available only after the goal sheet is approved.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {canUseCheckIns ? (
+          <Alert
+            className={
+              activeQuarter
+                ? "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                : "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+            }
+          >
+            <AlertTitle>
+              {activeQuarter
+                ? `${quarter} check-in window: ${quarterWindow.label}`
+                : "Check-ins are currently closed"}
+            </AlertTitle>
+            <AlertDescription>
+              {activeQuarter
+                ? "This quarter is currently inside its PRD check-in window."
+                : `Next window: ${nextQuarterWindow.quarter} in ${nextQuarterWindow.label}.`}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -163,7 +194,7 @@ export function EmployeeCheckIns() {
                   <div className="space-y-2">
                     <Label>Actual achievement</Label>
                     <Input
-                      disabled={!isEditable || !canUseCheckIns || isSyncedSharedGoal}
+                      disabled={!isEditable || !canEditActiveCheckIn || isSyncedSharedGoal}
                       type={goal.uomType === "timeline" ? "date" : "text"}
                       value={update?.actualAchievement ?? ""}
                       onChange={(event) =>
@@ -174,7 +205,7 @@ export function EmployeeCheckIns() {
                   <div className="space-y-2">
                     <Label>Progress status</Label>
                     <Select
-                      disabled={!isEditable || !canUseCheckIns || isSyncedSharedGoal}
+                      disabled={!isEditable || !canEditActiveCheckIn || isSyncedSharedGoal}
                       onValueChange={(value) =>
                         updateDraft(goal.id, { progressStatus: value as ProgressStatus })
                       }
@@ -220,11 +251,11 @@ export function EmployeeCheckIns() {
               {notice ? <span className="ml-3 text-foreground">{notice}</span> : null}
             </div>
             <div className="flex gap-3">
-              <Button disabled={!canUseCheckIns || !isEditable} variant="secondary" onClick={handleSave}>
+              <Button disabled={!canEditActiveCheckIn || !isEditable} variant="secondary" onClick={handleSave}>
                 <Save className="mr-2 size-4" />
                 Save draft
               </Button>
-              <Button disabled={!canUseCheckIns || !isEditable} onClick={handleSubmit}>
+              <Button disabled={!canEditActiveCheckIn || !isEditable} onClick={handleSubmit}>
                 <Send className="mr-2 size-4" />
                 Submit check-in
               </Button>
