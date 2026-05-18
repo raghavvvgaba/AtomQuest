@@ -6,10 +6,12 @@ import {
   FolderKanban,
   Home,
   LockOpen,
+  CalendarDays,
   PanelsTopLeft,
   ScrollText,
   Share2,
   TableProperties,
+  UsersRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -81,6 +83,18 @@ const adminNav: NavItem[] = [
     label: "Unlock",
     icon: LockOpen,
     match: (pathname) => pathname.startsWith("/admin/unlock"),
+  },
+  {
+    href: "/admin/cycles",
+    label: "Cycles",
+    icon: CalendarDays,
+    match: (pathname) => pathname.startsWith("/admin/cycles"),
+  },
+  {
+    href: "/admin/org-hierarchy",
+    label: "Org Hierarchy",
+    icon: UsersRound,
+    match: (pathname) => pathname.startsWith("/admin/org-hierarchy"),
   },
   {
     href: "/admin/shared-goals",

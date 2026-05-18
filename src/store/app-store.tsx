@@ -141,6 +141,7 @@ type AppStoreContextValue = {
     managerComment?: string,
   ) => Promise<boolean>;
   unlockGoalSheet: (employeeId: string) => Promise<boolean>;
+  updateEmployeeManager: (employeeId: string, managerId: string | null) => Promise<boolean>;
   createSharedGoal: (input: CreateSharedGoalInput) => Promise<{ success: boolean; error?: string }>;
   createAuditLogEntry: (payload: Omit<AuditLogEntry, "id" | "createdAt">) => void;
 };
@@ -184,6 +185,7 @@ type Action =
       managerComment?: string;
     }
   | { type: "unlock-goal-sheet"; employeeId: string }
+  | { type: "update-employee-manager"; employeeId: string; managerId: string | null }
   | { type: "create-audit-log-entry"; payload: Omit<AuditLogEntry, "id" | "createdAt"> };
 
 const emptyState: AppState = {
@@ -603,6 +605,16 @@ function appReducer(state: AppState, action: Action): AppState {
         ],
       };
     }
+
+    case "update-employee-manager":
+      return {
+        ...state,
+        users: state.users.map((user) =>
+          user.id === action.employeeId && user.role === "employee"
+            ? { ...user, managerId: action.managerId }
+            : user,
+        ),
+      };
 
     case "create-audit-log-entry":
       return {
@@ -1144,6 +1156,22 @@ export function AppStoreProvider({
     [persistWorkflowMutation],
   );
 
+  const updateEmployeeManager = useCallback(
+    async (employeeId: string, managerId: string | null) => {
+      try {
+        await persistWorkflowMutation({
+          action: "updateEmployeeManager",
+          employeeId,
+          managerId,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [persistWorkflowMutation],
+  );
+
   const createSharedGoal = useCallback(
     async (input: CreateSharedGoalInput) => {
       try {
@@ -1203,6 +1231,7 @@ export function AppStoreProvider({
       submitCheckIn,
       reviewCheckIn,
       unlockGoalSheet,
+      updateEmployeeManager,
       createSharedGoal,
       createAuditLogEntry,
     }),
@@ -1239,6 +1268,7 @@ export function AppStoreProvider({
       submitCheckIn,
       reviewCheckIn,
       unlockGoalSheet,
+      updateEmployeeManager,
       createSharedGoal,
       createAuditLogEntry,
     ],

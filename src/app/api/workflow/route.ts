@@ -63,6 +63,11 @@ type WorkflowMutation =
       employeeId: string;
     }
   | {
+      action: "updateEmployeeManager";
+      employeeId: string;
+      managerId: string | null;
+    }
+  | {
       action: "createSharedGoal";
       title: string;
       description: string;
@@ -939,6 +944,38 @@ export async function POST(request: Request) {
             throw new Error("Only approved goal sheets can be unlocked.");
           }
           await createAuditLog("Unlocked goal sheet", employee.name);
+          break;
+        }
+
+        case "updateEmployeeManager": {
+          if (appUser.role !== "admin") {
+            throw new Error("Forbidden");
+          }
+
+          const employee = await tx.appUser.findFirst({
+            where: { id: body.employeeId, role: "employee" },
+          });
+          if (!employee) {
+            throw new Error("Employee not found.");
+          }
+
+          const manager = body.managerId
+            ? await tx.appUser.findFirst({
+                where: { id: body.managerId, role: "manager" },
+              })
+            : null;
+          if (body.managerId && !manager) {
+            throw new Error("Selected manager is unavailable.");
+          }
+
+          await tx.appUser.update({
+            where: { id: employee.id },
+            data: { managerId: manager?.id ?? null },
+          });
+          await createAuditLog(
+            "Updated reporting manager",
+            `${employee.name} -> ${manager?.name ?? "Unassigned"}`,
+          );
           break;
         }
 

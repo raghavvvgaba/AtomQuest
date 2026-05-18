@@ -2,6 +2,73 @@
 
 Hackathon MVP for employee goal creation, manager approval, quarterly check-ins, admin unlocks, reporting, and audit visibility.
 
+## Architecture
+
+```mermaid
+flowchart TB
+  subgraph Users["Users"]
+    Employee["Employee"]
+    Manager["Manager"]
+    Admin["Admin / HR"]
+  end
+
+  subgraph Browser["Browser"]
+    UI["Role-based workspace UI"]
+    ClientStore["Workflow snapshot + client store"]
+  end
+
+  subgraph Vercel["Vercel Deployment"]
+    NextApp["Next.js App Router"]
+    AuthAPI["/api/auth/*"]
+    AppUserAPI["/api/auth/app-user"]
+    WorkflowAPI["/api/workflow"]
+  end
+
+  subgraph Services["Application Services"]
+    BetterAuth["Better Auth"]
+    Prisma["Prisma Client"]
+  end
+
+  subgraph Database["Neon Postgres"]
+    AuthTables["Auth tables: User, Session, Account, Verification"]
+    PeopleTables["People: AppUser, role, managerId"]
+    GoalTables["Goals: GoalSheet, Goal, SharedGoal"]
+    CheckInTables["Check-ins: CheckIn, CheckInGoalUpdate"]
+    AuditTables["Governance: AuditLogEntry"]
+  end
+
+  Employee --> UI
+  Manager --> UI
+  Admin --> UI
+
+  UI --> NextApp
+  UI --> ClientStore
+  ClientStore --> WorkflowAPI
+
+  NextApp --> AuthAPI
+  NextApp --> AppUserAPI
+  NextApp --> WorkflowAPI
+
+  AuthAPI --> BetterAuth
+  BetterAuth --> Prisma
+  AppUserAPI --> Prisma
+  WorkflowAPI --> Prisma
+
+  Prisma --> AuthTables
+  Prisma --> PeopleTables
+  Prisma --> GoalTables
+  Prisma --> CheckInTables
+  Prisma --> AuditTables
+```
+
+The application is a single **Next.js App Router** app. Vercel hosts the UI and server routes together, so there is no separate backend deployment. **Better Auth** manages login/session persistence, while app-specific roles and reporting lines live in `AppUser`. All product workflow data is persisted in **Neon Postgres** through **Prisma**.
+
+Core server routes:
+
+- `/api/auth/*` handles Better Auth login, signup, sessions, and logout.
+- `/api/auth/app-user` creates the app role mapping after signup.
+- `/api/workflow` handles goal sheets, approvals, shared goals, check-ins, admin unlocks, org hierarchy updates, and audit entries.
+
 ## Quick Start
 
 ```bash
