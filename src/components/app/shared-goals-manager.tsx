@@ -408,7 +408,7 @@ export function SharedGoalsManager({ role }: { role: Role }) {
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="font-semibold">{employee.name}</p>
                               {active ? (
-                                <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                                <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary brand-contrast-fg">
                                   <Check className="size-3.5" />
                                 </span>
                               ) : null}

@@ -18,7 +18,6 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { ProfileMenu } from "@/components/app/profile-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 
@@ -138,7 +137,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-7xl flex-col gap-6">
         <header className="flex flex-col gap-4 border-b border-border pb-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground dark:bg-secondary dark:text-secondary-foreground">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-primary surface-contrast-fg dark:bg-secondary">
               <Compass className="size-5" />
             </div>
             <div>
@@ -148,7 +147,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <ThemeToggle />
             {currentUser ? <ProfileMenu user={currentUser} /> : null}
           </div>
         </header>
@@ -167,7 +165,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
                       active
-                        ? "bg-primary text-primary-foreground dark:bg-secondary dark:text-secondary-foreground"
+                        ? "bg-primary surface-contrast-fg dark:bg-secondary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >

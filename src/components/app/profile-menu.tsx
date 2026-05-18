@@ -31,7 +31,10 @@ export function ProfileMenu({ user }: { user: User }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex size-10 items-center justify-center rounded-full border border-border bg-primary text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+      <DropdownMenuTrigger
+        className="flex size-10 items-center justify-center rounded-full border border-border bg-primary text-sm font-semibold transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        style={{ color: "var(--primary-foreground)" }}
+      >
         {initial}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">

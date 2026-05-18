@@ -155,3 +155,17 @@ select {
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  .brand-contrast-fg {
+    color: var(--primary-foreground);
+  }
+
+  .surface-contrast-fg {
+    color: var(--primary-foreground);
+  }
+
+  .dark .surface-contrast-fg {
+    color: var(--secondary-foreground);
+  }
+}

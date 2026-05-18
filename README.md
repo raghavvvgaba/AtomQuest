@@ -1,7 +1,5 @@
 # AtomQuest Goal Setting Portal
 
-Hackathon MVP for employee goal creation, manager approval, quarterly check-ins, admin unlocks, reporting, and audit visibility.
-
 ## Architecture
 
 ```mermaid
@@ -69,16 +67,13 @@ Core server routes:
 - `/api/auth/app-user` creates the app role mapping after signup.
 - `/api/workflow` handles goal sheets, approvals, shared goals, check-ins, admin unlocks, org hierarchy updates, and audit entries.
 
-## Quick Start
+## Evaluator Notes
 
-```bash
-pnpm install
-pnpm prisma:push
-pnpm db:seed
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
+- I have already created demo accounts that you can use directly for testing.
+- Use the Employee account to create, edit, save, and submit goal sheets.
+- Use the Manager account to review submitted goal sheets, edit target/weightage, approve, return for rework, and review check-ins.
+- Use the Admin account to view dashboard counts, unlock approved goal sheets, view reports, and inspect audit logs.
+- Public signup is enabled for hackathon demo convenience and lets the tester choose a role.
 
 ## Demo Accounts
 
@@ -95,10 +90,3 @@ Additional employee accounts created for testing:
 - Employee 3: `employee3@gmail.com` / `password`
 
 You can also create a new Employee, Manager, or Admin account from the **Create Account** section on the login page.
-
-## Evaluator Notes
-
-- Use the Employee account to create, edit, save, and submit goal sheets.
-- Use the Manager account to review submitted goal sheets, edit target/weightage, approve, return for rework, and review check-ins.
-- Use the Admin account to view dashboard counts, unlock approved goal sheets, view reports, and inspect audit logs.
-- Public signup is enabled for hackathon demo convenience and lets the tester choose a role.
