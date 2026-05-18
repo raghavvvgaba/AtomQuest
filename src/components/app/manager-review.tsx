@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, MessageSquareDashed, RotateCcw } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app/page-header";
 import { RequireRole } from "@/components/app/require-role";
@@ -28,7 +29,6 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
     approveGoalSheet,
   } = useAppStore();
   const [returnComment, setReturnComment] = useState("");
-  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [approvalErrors, setApprovalErrors] = useState<string[]>([]);
   const [isReturning, setIsReturning] = useState(false);
 
@@ -214,12 +214,13 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
                       const result = await approveGoalSheet(employee.id);
                       if (!result.isValid) {
                         setApprovalErrors(result.summary);
-                        setActionNotice(null);
                         return;
                       }
 
                       setApprovalErrors([]);
-                      setActionNotice("Sheet approved and locked for the employee.");
+                      toast.success("Sheet approved and locked", {
+                        description: `${employee.name}'s goal sheet is now locked for employee edits.`,
+                      });
                     }}
                     type="button"
                   >
@@ -231,13 +232,18 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
                     onClick={async () => {
                       setIsReturning(true);
                       setApprovalErrors([]);
-                      setActionNotice(null);
 
                       try {
                         const returned = await returnGoalSheet(employee.id, returnComment);
-                        setActionNotice(
-                          returned ? "Sheet returned to the employee for rework." : null,
-                        );
+                        if (returned) {
+                          toast.success("Sheet returned for rework", {
+                            description: `${employee.name}'s goal sheet was returned to the employee.`,
+                          });
+                        } else {
+                          toast.error("Return failed", {
+                            description: `We could not return ${employee.name}'s goal sheet.`,
+                          });
+                        }
                       } finally {
                         setIsReturning(false);
                       }
@@ -249,11 +255,6 @@ export function ManagerReview({ employeeId }: { employeeId: string }) {
                     {isReturning ? "Returning..." : "Return for rework"}
                   </Button>
                 </div>
-                {actionNotice ? (
-                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                    {actionNotice}
-                  </div>
-                ) : null}
                 {goalSheet.managerComment ? (
                   <div className="rounded-2xl bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground">
                     <MessageSquareDashed className="mr-2 inline size-4 text-muted-foreground" />

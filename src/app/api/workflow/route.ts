@@ -589,10 +589,6 @@ export async function POST(request: Request) {
           });
 
           for (const assignment of assignments) {
-            if (assignment.goal.goalSheet.status !== "approved") {
-              continue;
-            }
-
             const linkedCheckIn = await tx.checkIn.upsert({
               where: {
                 goalSheetId_quarter: {
@@ -600,7 +596,10 @@ export async function POST(request: Request) {
                   quarter,
                 },
               },
-              update: {},
+              update:
+                assignment.employeeId === employeeId
+                  ? { status: "submitted" }
+                  : {},
               create: {
                 id: `check-in-${crypto.randomUUID()}`,
                 goalSheetId: assignment.goal.goalSheetId,

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Users } from "lucide-react";
+import { Check, Plus, Users } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app/page-header";
 import { RequireRole } from "@/components/app/require-role";
@@ -42,6 +43,15 @@ const initialForm: SharedGoalForm = {
   targetValue: "",
 };
 
+type EmployeeEligibility = {
+  id: string;
+  name: string;
+  email?: string;
+  statusLabel: string;
+  reason: string;
+  isEligible: boolean;
+};
+
 export function SharedGoalsManager({ role }: { role: Role }) {
   const {
     currentUser,
@@ -53,9 +63,7 @@ export function SharedGoalsManager({ role }: { role: Role }) {
   const [form, setForm] = useState<SharedGoalForm>(initialForm);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [primaryOwnerEmployeeId, setPrimaryOwnerEmployeeId] = useState("");
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(
-    null,
-  );
+  const [notice, setNotice] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   const availableEmployees = useMemo(() => {
@@ -68,15 +76,87 @@ export function SharedGoalsManager({ role }: { role: Role }) {
     return state.users.filter((user) => user.role === "employee");
   }, [currentUser, getManagerTeam, role, state.users]);
 
+  const employeeEligibility = useMemo<EmployeeEligibility[]>(() => {
+    return availableEmployees.map((employee) => {
+      const goalSheet = state.goalSheets.find((sheet) => sheet.employeeId === employee.id);
+      const goalCount = goalSheet
+        ? state.goals.filter((goal) => goal.goalSheetId === goalSheet.id).length
+        : 0;
+
+      if (!goalSheet) {
+        return {
+          id: employee.id,
+          name: employee.name,
+          email: employee.email,
+          statusLabel: "Ready",
+          reason: "No goal sheet yet. A draft sheet will be created automatically.",
+          isEligible: true,
+        };
+      }
+
+      if (goalCount >= 8) {
+        return {
+          id: employee.id,
+          name: employee.name,
+          email: employee.email,
+          statusLabel: "Full",
+          reason: "Already has 8 goals on the current sheet.",
+          isEligible: false,
+        };
+      }
+
+      if (goalSheet.status === "approved") {
+        return {
+          id: employee.id,
+          name: employee.name,
+          email: employee.email,
+          statusLabel: "Locked",
+          reason: "Goal sheet is approved and locked. Admin must unlock it first.",
+          isEligible: false,
+        };
+      }
+
+      if (goalSheet.status === "submitted") {
+        return {
+          id: employee.id,
+          name: employee.name,
+          email: employee.email,
+          statusLabel: "Under review",
+          reason: "Goal sheet is submitted for manager review and is not editable.",
+          isEligible: false,
+        };
+      }
+
+      return {
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+        statusLabel: goalSheet.status === "unlocked" ? "Unlocked" : "Ready",
+        reason:
+          goalSheet.status === "unlocked"
+            ? "Sheet was unlocked by admin and can receive shared goals."
+            : "Editable sheet is ready for a shared goal.",
+        isEligible: true,
+      };
+    });
+  }, [availableEmployees, state.goalSheets, state.goals]);
+
   const createdSharedGoals = currentUser ? getSharedGoalsCreatedBy(currentUser.id) : [];
 
   if (!currentUser) return null;
 
-  const selectedEmployees = availableEmployees.filter((employee) =>
-    selectedEmployeeIds.includes(employee.id),
+  const selectedEmployees = employeeEligibility.filter(
+    (employee) => employee.isEligible && selectedEmployeeIds.includes(employee.id),
   );
+  const selectedPrimaryOwner =
+    selectedEmployees.find((employee) => employee.id === primaryOwnerEmployeeId) ?? null;
 
   function toggleEmployee(employeeId: string) {
+    const employee = employeeEligibility.find((item) => item.id === employeeId);
+    if (!employee?.isEligible) {
+      return;
+    }
+
     setNotice(null);
     setSelectedEmployeeIds((current) => {
       const next = current.includes(employeeId)
@@ -124,10 +204,7 @@ export function SharedGoalsManager({ role }: { role: Role }) {
       selectedEmployeeIds.length < 2 ||
       !primaryOwnerEmployeeId
     ) {
-      setNotice({
-        tone: "error",
-        message: "Complete all shared goal fields, pick at least two employees, and choose a primary owner.",
-      });
+      setNotice("Complete all shared goal fields, pick at least two employees, and choose a primary owner.");
       return;
     }
 
@@ -147,9 +224,8 @@ export function SharedGoalsManager({ role }: { role: Role }) {
       });
 
       if (!result.success) {
-        setNotice({
-          tone: "error",
-          message: result.error ?? "Shared goal creation failed.",
+        toast.error("Shared goal creation failed", {
+          description: result.error ?? "We could not create the shared goal.",
         });
         return;
       }
@@ -157,9 +233,8 @@ export function SharedGoalsManager({ role }: { role: Role }) {
       setForm(initialForm);
       setSelectedEmployeeIds([]);
       setPrimaryOwnerEmployeeId("");
-      setNotice({
-        tone: "success",
-        message: "Shared goal created and linked to the selected employee sheets.",
+      toast.success("Shared goal created", {
+        description: "Shared goal created and linked to the selected employee sheets.",
       });
     } finally {
       setIsCreating(false);
@@ -175,16 +250,9 @@ export function SharedGoalsManager({ role }: { role: Role }) {
         />
 
         {notice ? (
-          <Alert
-            className={
-              notice.tone === "success"
-                ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                : undefined
-            }
-            variant={notice.tone === "error" ? "destructive" : "default"}
-          >
-            <AlertTitle>{notice.tone === "success" ? "Shared goal created" : "Action blocked"}</AlertTitle>
-            <AlertDescription>{notice.message}</AlertDescription>
+          <Alert variant="destructive">
+            <AlertTitle>Action blocked</AlertTitle>
+            <AlertDescription>{notice}</AlertDescription>
           </Alert>
         ) : null}
 
@@ -309,27 +377,62 @@ export function SharedGoalsManager({ role }: { role: Role }) {
                         ? "Only your direct reports are available here."
                         : "Shared goals can be pushed to any employee."}
                     </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Locked, under-review, or full sheets are shown here but cannot be selected.
+                    </p>
                   </div>
                   <Badge variant="secondary">{selectedEmployeeIds.length} selected</Badge>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  {availableEmployees.map((employee) => {
+                <div className="space-y-2">
+                  {employeeEligibility.map((employee) => {
                     const active = selectedEmployeeIds.includes(employee.id);
                     return (
                       <button
                         key={employee.id}
+                        aria-disabled={!employee.isEligible}
                         className={cn(
-                          "rounded-2xl border px-4 py-3 text-left transition",
+                          "w-full rounded-2xl border px-4 py-3 text-left transition",
                           active
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                            ? "border-primary bg-primary/8 text-foreground shadow-[0_8px_24px_rgba(15,23,42,0.06)]"
+                            : employee.isEligible
+                              ? "border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted/30"
+                              : "cursor-not-allowed border-border bg-muted/25 text-muted-foreground",
                         )}
+                        disabled={!employee.isEligible}
                         onClick={() => toggleEmployee(employee.id)}
                         type="button"
                       >
-                        <p className="font-semibold">{employee.name}</p>
-                        <p className="text-sm">{employee.email ?? "Email unavailable"}</p>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold">{employee.name}</p>
+                              {active ? (
+                                <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                                  <Check className="size-3.5" />
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 truncate text-sm text-muted-foreground">
+                              {employee.email ?? "Email unavailable"}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                              {employee.reason}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={
+                              employee.isEligible
+                                ? employee.statusLabel === "Unlocked"
+                                  ? "outline"
+                                  : "secondary"
+                                : "destructive"
+                            }
+                            className="shrink-0"
+                          >
+                            {employee.statusLabel}
+                          </Badge>
+                        </div>
                       </button>
                     );
                   })}
@@ -343,7 +446,9 @@ export function SharedGoalsManager({ role }: { role: Role }) {
                   value={primaryOwnerEmployeeId}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select the primary owner" />
+                    <SelectValue placeholder="Select the primary owner">
+                      {selectedPrimaryOwner?.name ?? "Select the primary owner"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {selectedEmployees.map((employee) => (

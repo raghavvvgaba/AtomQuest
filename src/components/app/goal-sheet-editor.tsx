@@ -1,7 +1,8 @@
 "use client";
 
-import { Plus, Save, Send, TriangleAlert } from "lucide-react";
+import { Plus, Save, Send } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { GoalRowEditor } from "@/components/app/goal-row-editor";
 import { PageHeader } from "@/components/app/page-header";
@@ -11,7 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { validateGoalSheet } from "@/lib/goal-sheet";
-import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 
 export function GoalSheetEditor() {
@@ -30,8 +30,6 @@ export function GoalSheetEditor() {
   } = useAppStore();
 
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [draftNotice, setDraftNotice] = useState<string | null>(null);
-  const [noticeTone, setNoticeTone] = useState<"draft" | "success">("draft");
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSubmittingSheet, setIsSubmittingSheet] = useState(false);
 
@@ -50,16 +48,25 @@ export function GoalSheetEditor() {
     goalSheet.status === "returned" ||
     goalSheet.status === "unlocked";
   const totalWeightage = getGoalSheetTotalWeightage(employeeId);
-  const isSubmittedState = goalSheet.status === "submitted" || goalSheet.status === "approved";
 
   async function handleSaveDraft() {
     setIsSavingDraft(true);
-    setDraftNotice(null);
 
     try {
       const saved = await saveGoalSheetDraft(employeeId);
-      setNoticeTone("draft");
-      setDraftNotice(saved ? "Draft saved." : "Draft could not be saved.");
+      if (saved) {
+        toast.success("Draft saved", {
+          description: "Your goal sheet draft has been saved.",
+        });
+      } else {
+        toast.error("Draft could not be saved", {
+          description: "Please try saving the goal sheet again.",
+        });
+      }
+    } catch {
+      toast.error("Draft could not be saved", {
+        description: "Please try saving the goal sheet again.",
+      });
     } finally {
       setIsSavingDraft(false);
     }
@@ -68,16 +75,22 @@ export function GoalSheetEditor() {
   async function handleSubmit() {
     setSubmitAttempted(true);
     setIsSubmittingSheet(true);
-    setDraftNotice(null);
 
     try {
       const result = await submitGoalSheet(employeeId);
       if (result.isValid) {
-        setNoticeTone("success");
-        setDraftNotice("Goal sheet submitted to your manager.");
+        toast.success("Goal sheet submitted", {
+          description: "Your goal sheet has been sent to your manager for review.",
+        });
       } else {
-        setDraftNotice(null);
+        toast.error("Submission blocked", {
+          description: result.summary.join(" "),
+        });
       }
+    } catch {
+      toast.error("Submission failed", {
+        description: "Please try submitting the goal sheet again.",
+      });
     } finally {
       setIsSubmittingSheet(false);
     }
@@ -165,18 +178,6 @@ export function GoalSheetEditor() {
               </Card>
             ) : null}
 
-            {(submitAttempted && (validation.summary.length > 0 || Object.keys(validation.goalErrors).length > 0)) ? (
-              <Alert variant="destructive">
-                <TriangleAlert className="size-5" />
-                <AlertTitle>Submission blocked</AlertTitle>
-                <AlertDescription className="space-y-2 text-sm leading-7">
-                  {validation.summary.map((message) => (
-                    <p key={message}>{message}</p>
-                  ))}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
             {goals.map((goal, index) => {
               const sharedGoal = goal.sharedGoalId ? getSharedGoalById(goal.sharedGoalId) : undefined;
               const primaryOwnerName = sharedGoal
@@ -237,18 +238,6 @@ export function GoalSheetEditor() {
                   <span>Total weightage</span>
                   <strong className="text-foreground">{totalWeightage}%</strong>
                 </div>
-                {draftNotice ? (
-                  <div
-                    className={cn(
-                      "rounded-2xl px-4 py-3",
-                      noticeTone === "success" || isSubmittedState
-                        ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                        : "border border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-                    )}
-                  >
-                    {draftNotice}
-                  </div>
-                ) : null}
               </CardContent>
             </Card>
 
